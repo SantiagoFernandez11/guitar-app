@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const songRoutes = require('./routes/songs');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -28,4 +29,6 @@ mongoose.connect(process.env.MONGO_URI)
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch((err) => console.error('MongoDB connection error:', err));
+
+  app.use('/api/songs', songRoutes);
 

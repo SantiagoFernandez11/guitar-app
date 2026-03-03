@@ -14,6 +14,7 @@ export default function Dashboard() {
     <div>
       <h2>Welcome, {user?.username}!</h2>
       <p>Your guitar journey starts here.</p>
+      <button onClick={() => navigate('/songs')}>Browse Songs</button>
       <button onClick={handleLogout}>Logout</button>
     </div>
   );
