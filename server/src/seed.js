@@ -2,20 +2,85 @@ const mongoose = require('mongoose');
 const Song = require('./models/Song');
 require('dotenv').config();
 
+const BUFFER = 3000; // 3 second buffer before first note
+
 const songs = [
+  {
+    title: 'Banana Pancakes',
+    artist: 'Jack Johnson',
+    difficulty: 'beginner',
+    bpm: 75,
+    chords: [
+      {
+        name: 'G',
+        fingers: [
+          { string: 6, fret: 3 },
+          { string: 5, fret: 2 },
+          { string: 1, fret: 3 }
+        ]
+      },
+      {
+        name: 'Em',
+        fingers: [
+          { string: 5, fret: 2 },
+          { string: 4, fret: 2 }
+        ]
+      },
+      {
+        name: 'C',
+        fingers: [
+          { string: 5, fret: 3 },
+          { string: 4, fret: 2 },
+          { string: 2, fret: 1 }
+        ]
+      },
+      {
+        name: 'D',
+        fingers: [
+          { string: 4, fret: 0 },
+          { string: 3, fret: 2 },
+          { string: 2, fret: 3 },
+          { string: 1, fret: 2 }
+        ]
+      }
+    ],
+    noteMap: [
+      // G chord
+      { note: 'G2',  fret: 3,  string: 6, timestamp: BUFFER + 0,     chord: 'G'  },
+      { note: 'B3',  fret: 0,  string: 2, timestamp: BUFFER + 800,   chord: 'G'  },
+      { note: 'D4',  fret: 0,  string: 1, timestamp: BUFFER + 1600,  chord: 'G'  },
+      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 2400,  chord: 'G'  },
+      // Em chord
+      { note: 'E2',  fret: 0,  string: 6, timestamp: BUFFER + 3200,  chord: 'Em' },
+      { note: 'B3',  fret: 0,  string: 2, timestamp: BUFFER + 4000,  chord: 'Em' },
+      { note: 'E3',  fret: 2,  string: 4, timestamp: BUFFER + 4800,  chord: 'Em' },
+      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 5600,  chord: 'Em' },
+      // C chord
+      { note: 'C2',  fret: 3,  string: 5, timestamp: BUFFER + 6400,  chord: 'C'  },
+      { note: 'E3',  fret: 2,  string: 4, timestamp: BUFFER + 7200,  chord: 'C'  },
+      { note: 'C4',  fret: 1,  string: 2, timestamp: BUFFER + 8000,  chord: 'C'  },
+      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 8800,  chord: 'C'  },
+      // D chord
+      { note: 'D3',  fret: 0,  string: 4, timestamp: BUFFER + 9600,  chord: 'D'  },
+      { note: 'A3',  fret: 2,  string: 3, timestamp: BUFFER + 10400, chord: 'D'  },
+      { note: 'D4',  fret: 3,  string: 2, timestamp: BUFFER + 11200, chord: 'D'  },
+      { note: 'F#4', fret: 2,  string: 1, timestamp: BUFFER + 12000, chord: 'D'  },
+    ]
+  },
   {
     title: 'Smoke on the Water',
     artist: 'Deep Purple',
     difficulty: 'beginner',
     bpm: 112,
+    chords: [],
     noteMap: [
-      { note: 'G3', fret: 5, string: 4, timestamp: 0 },
-      { note: 'Bb3', fret: 8, string: 4, timestamp: 500 },
-      { note: 'C4', fret: 10, string: 4, timestamp: 750 },
-      { note: 'G3', fret: 5, string: 4, timestamp: 1500 },
-      { note: 'Bb3', fret: 8, string: 4, timestamp: 2000 },
-      { note: 'Db4', fret: 11, string: 4, timestamp: 2250 },
-      { note: 'C4', fret: 10, string: 4, timestamp: 2750 },
+      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 0,    chord: '' },
+      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 1000, chord: '' },
+      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 1500, chord: '' },
+      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 3000, chord: '' },
+      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 4000, chord: '' },
+      { note: 'Db4', fret: 11, string: 4, timestamp: BUFFER + 4500, chord: '' },
+      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 5500, chord: '' },
     ]
   },
   {
@@ -23,28 +88,13 @@ const songs = [
     artist: 'Oasis',
     difficulty: 'beginner',
     bpm: 87,
+    chords: [],
     noteMap: [
-      { note: 'B3', fret: 4, string: 3, timestamp: 0 },
-      { note: 'D4', fret: 7, string: 3, timestamp: 500 },
-      { note: 'E4', fret: 9, string: 3, timestamp: 1000 },
-      { note: 'B3', fret: 4, string: 3, timestamp: 1500 },
-      { note: 'D4', fret: 7, string: 3, timestamp: 2000 },
-    ]
-  },
-  {
-    title: 'Sweet Child O Mine',
-    artist: 'Guns N Roses',
-    difficulty: 'intermediate',
-    bpm: 125,
-    noteMap: [
-      { note: 'D4', fret: 7, string: 3, timestamp: 0 },
-      { note: 'D5', fret: 7, string: 1, timestamp: 400 },
-      { note: 'A4', fret: 5, string: 2, timestamp: 800 },
-      { note: 'G4', fret: 5, string: 3, timestamp: 1200 },
-      { note: 'G5', fret: 8, string: 1, timestamp: 1600 },
-      { note: 'A4', fret: 5, string: 2, timestamp: 2000 },
-      { note: 'B4', fret: 7, string: 2, timestamp: 2400 },
-      { note: 'D5', fret: 7, string: 1, timestamp: 2800 },
+      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 0,    chord: '' },
+      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 1000, chord: '' },
+      { note: 'E4', fret: 9, string: 3, timestamp: BUFFER + 2000, chord: '' },
+      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 3000, chord: '' },
+      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 4000, chord: '' },
     ]
   }
 ];
