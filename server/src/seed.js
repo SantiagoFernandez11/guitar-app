@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Song = require('./models/Song');
 require('dotenv').config();
 
-const BUFFER = 3000; // 3 second buffer before first note
+const BUFFER = 3000;
 
 const songs = [
   {
@@ -16,14 +16,21 @@ const songs = [
         fingers: [
           { string: 6, fret: 3 },
           { string: 5, fret: 2 },
+          { string: 4, fret: 0 },
+          { string: 3, fret: 0 },
+          { string: 2, fret: 0 },
           { string: 1, fret: 3 }
         ]
       },
       {
         name: 'Em',
         fingers: [
+          { string: 6, fret: 0 },
           { string: 5, fret: 2 },
-          { string: 4, fret: 2 }
+          { string: 4, fret: 2 },
+          { string: 3, fret: 0 },
+          { string: 2, fret: 0 },
+          { string: 1, fret: 0 }
         ]
       },
       {
@@ -31,7 +38,9 @@ const songs = [
         fingers: [
           { string: 5, fret: 3 },
           { string: 4, fret: 2 },
-          { string: 2, fret: 1 }
+          { string: 3, fret: 0 },
+          { string: 2, fret: 1 },
+          { string: 1, fret: 0 }
         ]
       },
       {
@@ -45,26 +54,34 @@ const songs = [
       }
     ],
     noteMap: [
-      // G chord
-      { note: 'G2',  fret: 3,  string: 6, timestamp: BUFFER + 0,     chord: 'G'  },
-      { note: 'B3',  fret: 0,  string: 2, timestamp: BUFFER + 800,   chord: 'G'  },
-      { note: 'D4',  fret: 0,  string: 1, timestamp: BUFFER + 1600,  chord: 'G'  },
-      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 2400,  chord: 'G'  },
-      // Em chord
-      { note: 'E2',  fret: 0,  string: 6, timestamp: BUFFER + 3200,  chord: 'Em' },
-      { note: 'B3',  fret: 0,  string: 2, timestamp: BUFFER + 4000,  chord: 'Em' },
-      { note: 'E3',  fret: 2,  string: 4, timestamp: BUFFER + 4800,  chord: 'Em' },
-      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 5600,  chord: 'Em' },
-      // C chord
-      { note: 'C2',  fret: 3,  string: 5, timestamp: BUFFER + 6400,  chord: 'C'  },
-      { note: 'E3',  fret: 2,  string: 4, timestamp: BUFFER + 7200,  chord: 'C'  },
-      { note: 'C4',  fret: 1,  string: 2, timestamp: BUFFER + 8000,  chord: 'C'  },
-      { note: 'G3',  fret: 0,  string: 3, timestamp: BUFFER + 8800,  chord: 'C'  },
-      // D chord
-      { note: 'D3',  fret: 0,  string: 4, timestamp: BUFFER + 9600,  chord: 'D'  },
-      { note: 'A3',  fret: 2,  string: 3, timestamp: BUFFER + 10400, chord: 'D'  },
-      { note: 'D4',  fret: 3,  string: 2, timestamp: BUFFER + 11200, chord: 'D'  },
-      { note: 'F#4', fret: 2,  string: 1, timestamp: BUFFER + 12000, chord: 'D'  },
+      // G chord - Low E (fingered), A (fingered), D (open), G (open), B (open), High E (fingered)
+      { note: 'G2',  fret: 3, string: 6, timestamp: BUFFER + 0,    chord: 'G',  type: 'fingered' },
+      { note: 'D3',  fret: 2, string: 5, timestamp: BUFFER + 0,    chord: 'G',  type: 'fingered' },
+      { note: 'G3',  fret: 0, string: 4, timestamp: BUFFER + 0,    chord: 'G',  type: 'open' },
+      { note: 'B3',  fret: 0, string: 3, timestamp: BUFFER + 0,    chord: 'G',  type: 'open' },
+      { note: 'D4',  fret: 0, string: 2, timestamp: BUFFER + 0,    chord: 'G',  type: 'open' },
+      { note: 'G4',  fret: 3, string: 1, timestamp: BUFFER + 0,    chord: 'G',  type: 'fingered' },
+      // Em chord - all strings, Low E open, A fingered, D fingered, G open, B open, High E open
+      { note: 'E2',  fret: 0, string: 6, timestamp: BUFFER + 3200, chord: 'Em', type: 'open' },
+      { note: 'B2',  fret: 2, string: 5, timestamp: BUFFER + 3200, chord: 'Em', type: 'fingered' },
+      { note: 'E3',  fret: 2, string: 4, timestamp: BUFFER + 3200, chord: 'Em', type: 'fingered' },
+      { note: 'G3',  fret: 0, string: 3, timestamp: BUFFER + 3200, chord: 'Em', type: 'open' },
+      { note: 'B3',  fret: 0, string: 2, timestamp: BUFFER + 3200, chord: 'Em', type: 'open' },
+      { note: 'E4',  fret: 0, string: 1, timestamp: BUFFER + 3200, chord: 'Em', type: 'open' },
+      // C chord - Low E muted, A fingered, D fingered, G open, B fingered, High E open
+      { note: 'X',   fret: 0, string: 6, timestamp: BUFFER + 6400, chord: 'C',  type: 'muted' },
+      { note: 'C2',  fret: 3, string: 5, timestamp: BUFFER + 6400, chord: 'C',  type: 'fingered' },
+      { note: 'E3',  fret: 2, string: 4, timestamp: BUFFER + 6400, chord: 'C',  type: 'fingered' },
+      { note: 'G3',  fret: 0, string: 3, timestamp: BUFFER + 6400, chord: 'C',  type: 'open' },
+      { note: 'C4',  fret: 1, string: 2, timestamp: BUFFER + 6400, chord: 'C',  type: 'fingered' },
+      { note: 'E4',  fret: 0, string: 1, timestamp: BUFFER + 6400, chord: 'C',  type: 'open' },
+      // D chord - Low E muted, A muted, D open, G fingered, B fingered, High E fingered
+      { note: 'X',   fret: 0, string: 6, timestamp: BUFFER + 9600, chord: 'D',  type: 'muted' },
+      { note: 'X',   fret: 0, string: 5, timestamp: BUFFER + 9600, chord: 'D',  type: 'muted' },
+      { note: 'D3',  fret: 0, string: 4, timestamp: BUFFER + 9600, chord: 'D',  type: 'open' },
+      { note: 'A3',  fret: 2, string: 3, timestamp: BUFFER + 9600, chord: 'D',  type: 'fingered' },
+      { note: 'D4',  fret: 3, string: 2, timestamp: BUFFER + 9600, chord: 'D',  type: 'fingered' },
+      { note: 'F#4', fret: 2, string: 1, timestamp: BUFFER + 9600, chord: 'D',  type: 'fingered' },
     ]
   },
   {
@@ -74,13 +91,13 @@ const songs = [
     bpm: 112,
     chords: [],
     noteMap: [
-      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 0,    chord: '' },
-      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 1000, chord: '' },
-      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 1500, chord: '' },
-      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 3000, chord: '' },
-      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 4000, chord: '' },
-      { note: 'Db4', fret: 11, string: 4, timestamp: BUFFER + 4500, chord: '' },
-      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 5500, chord: '' },
+      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 0,    chord: '', type: 'fingered' },
+      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 1000, chord: '', type: 'fingered' },
+      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 1500, chord: '', type: 'fingered' },
+      { note: 'G3',  fret: 5,  string: 4, timestamp: BUFFER + 3000, chord: '', type: 'fingered' },
+      { note: 'Bb3', fret: 8,  string: 4, timestamp: BUFFER + 4000, chord: '', type: 'fingered' },
+      { note: 'Db4', fret: 11, string: 4, timestamp: BUFFER + 4500, chord: '', type: 'fingered' },
+      { note: 'C4',  fret: 10, string: 4, timestamp: BUFFER + 5500, chord: '', type: 'fingered' },
     ]
   },
   {
@@ -90,11 +107,11 @@ const songs = [
     bpm: 87,
     chords: [],
     noteMap: [
-      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 0,    chord: '' },
-      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 1000, chord: '' },
-      { note: 'E4', fret: 9, string: 3, timestamp: BUFFER + 2000, chord: '' },
-      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 3000, chord: '' },
-      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 4000, chord: '' },
+      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 0,    chord: '', type: 'fingered' },
+      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 1000, chord: '', type: 'fingered' },
+      { note: 'E4', fret: 9, string: 3, timestamp: BUFFER + 2000, chord: '', type: 'fingered' },
+      { note: 'B3', fret: 4, string: 3, timestamp: BUFFER + 3000, chord: '', type: 'fingered' },
+      { note: 'D4', fret: 7, string: 3, timestamp: BUFFER + 4000, chord: '', type: 'fingered' },
     ]
   }
 ];
@@ -104,10 +121,7 @@ mongoose.connect(process.env.MONGO_URI)
     console.log('Connected to MongoDB');
     await Song.deleteMany({});
     await Song.insertMany(songs);
-    console.log('Database seeded with songs');
+    console.log('Database seeded');
     process.exit(0);
   })
-  .catch((err) => {
-    console.error('Error seeding database:', err);
-    process.exit(1);
-  });
+  .catch(err => { console.error(err); process.exit(1); });

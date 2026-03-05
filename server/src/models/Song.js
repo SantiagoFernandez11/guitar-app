@@ -15,7 +15,8 @@ const noteSchema = new mongoose.Schema({
   fret: Number,
   string: Number,
   timestamp: Number,
-  chord: String
+  chord: String,
+  type: { type: String, enum: ['fingered', 'open', 'muted'], default: 'fingered' }
 });
 
 const songSchema = new mongoose.Schema({
