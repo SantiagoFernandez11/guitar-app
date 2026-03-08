@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { lookupChord } from '../utils/chordLibrary';
 
 const TECHNIQUES = [
   { value: 'normal', label: 'Normal', symbol: '' },
@@ -100,6 +101,26 @@ export default function TabEditor({ tabData, onChange }) {
     setPendingTechnique(null);
   };
 
+  const fillChordPreset = () => {
+    const preset = lookupChord(tab.chords[position] || '');
+    if (!preset) return;
+    const newTab = JSON.parse(JSON.stringify(tab));
+    while (newTab.chords.length <= position) newTab.chords.push('');
+    // Ensure all lines have a slot at this position, cleared first
+    newTab.lines.forEach(line => {
+      while (line.notes.length <= position) line.notes.push('-');
+      line.notes[position] = '-';
+    });
+    // Fill each fingered string (lines[0]=string1=high e, lines[5]=string6=low E)
+    preset.fingers.forEach(finger => {
+      const lineIndex = finger.string - 1;
+      if (lineIndex >= 0 && lineIndex < newTab.lines.length) {
+        newTab.lines[lineIndex].notes[position] = String(finger.fret);
+      }
+    });
+    updateTab(newTab);
+  };
+
   const movePosition = (dir) => {
     setPendingTechnique(null);
     setPosition(p => Math.max(0, Math.min(tabLength - 1, p + dir)));
@@ -140,7 +161,7 @@ export default function TabEditor({ tabData, onChange }) {
       </div>
 
       {/* Technique + Chord */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: lookupChord(tab.chords[position]) ? '8px' : '16px', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '150px' }}>
           <label style={labelStyle}>Technique</label>
           <select value={technique} onChange={e => { setTechnique(e.target.value); setPendingTechnique(null); }} style={inputStyle}>
@@ -155,6 +176,32 @@ export default function TabEditor({ tabData, onChange }) {
             placeholder="e.g. Am, C, G7" style={inputStyle} />
         </div>
       </div>
+
+      {/* Chord preset suggestion */}
+      {lookupChord(tab.chords[position]) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', marginBottom: '16px',
+          background: 'rgba(200,169,110,0.05)', border: '1px solid var(--border-accent)',
+          borderRadius: 'var(--radius-sm)', gap: '12px',
+        }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            Preset found for{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>
+              {tab.chords[position]}
+            </span>
+            {' '}— fills fret numbers into this position
+          </span>
+          <button onClick={fillChordPreset} style={{
+            padding: '4px 12px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap',
+            border: '1px solid var(--border-accent)', background: 'transparent',
+            color: 'var(--accent)', cursor: 'pointer', fontSize: '12px',
+            fontFamily: 'var(--font-body)', fontWeight: '500',
+          }}>
+            Fill tab
+          </button>
+        </div>
+      )}
 
       {pendingTechnique && (
         <div style={{ padding: '8px 12px', background: 'rgba(200,169,110,0.06)', border: '1px solid var(--border-accent)', borderRadius: 'var(--radius-sm)', marginBottom: '12px', fontSize: '12px', color: 'var(--accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
