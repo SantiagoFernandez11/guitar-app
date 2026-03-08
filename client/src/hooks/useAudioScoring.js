@@ -58,6 +58,9 @@ export function useAudioScoring(noteMap) {
       const buffer = new Float32Array(analyser.fftSize);
       scoredTimestampsRef.current = new Set();
 
+      const PERFECT_WINDOW = 150;
+      const GOOD_WINDOW = 350;
+
       const detect = () => {
         analyser.getFloatTimeDomainData(buffer);
         const [frequency, clarity] = detector.findPitch(buffer, audioContext.sampleRate);
@@ -67,8 +70,6 @@ export function useAudioScoring(noteMap) {
           setDetectedNote(note);
 
           const currentTime = getCurrentTime();
-          const PERFECT_WINDOW = 150;
-          const GOOD_WINDOW = 350;
 
           Object.entries(groupedRef.current).forEach(([ts, notes]) => {
             const timestamp = parseFloat(ts);
@@ -93,22 +94,23 @@ export function useAudioScoring(noteMap) {
               setHits(h => h + 1);
             }
           });
-
-          Object.keys(groupedRef.current).forEach(ts => {
-            const timestamp = parseFloat(ts);
-            if (scoredTimestampsRef.current.has(timestamp)) return;
-            if (getCurrentTime() > timestamp + GOOD_WINDOW) {
-              scoredTimestampsRef.current.add(timestamp);
-              const notes = groupedRef.current[timestamp];
-              const newResults = {};
-              notes.forEach(n => {
-                newResults[`${n.timestamp}-${n.string}`] = 'missed';
-              });
-              setHitResults(prev => ({ ...prev, ...newResults }));
-              setMisses(m => m + 1);
-            }
-          });
         }
+
+        // Miss detection runs every frame regardless of pitch clarity
+        Object.keys(groupedRef.current).forEach(ts => {
+          const timestamp = parseFloat(ts);
+          if (scoredTimestampsRef.current.has(timestamp)) return;
+          if (getCurrentTime() > timestamp + GOOD_WINDOW) {
+            scoredTimestampsRef.current.add(timestamp);
+            const notes = groupedRef.current[timestamp];
+            const newResults = {};
+            notes.forEach(n => {
+              newResults[`${n.timestamp}-${n.string}`] = 'missed';
+            });
+            setHitResults(prev => ({ ...prev, ...newResults }));
+            setMisses(m => m + 1);
+          }
+        });
 
         animationFrameRef.current = requestAnimationFrame(detect);
       };

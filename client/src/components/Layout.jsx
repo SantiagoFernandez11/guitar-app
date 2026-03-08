@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext';
 const NAV_ITEMS = [
     { label: 'Discover', path: '/discover', icon: '◈' },
     { label: 'Browse', path: '/songs', icon: '♪' },
-    { label: 'My Songs', path: '/my-songs', icon: '◎' },
     { label: 'Profile', path: '/profile', icon: '◉' },
 ];
 

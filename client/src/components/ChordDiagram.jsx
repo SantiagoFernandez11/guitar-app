@@ -12,15 +12,23 @@ export default function ChordDiagram({ chord, isActive }) {
   return (
     <div style={{
       display: 'inline-block',
-      padding: '0.4rem 0.5rem',
-      border: `2px solid ${isActive ? '#22c55e' : '#d1d5db'}`,
-      borderRadius: '8px',
-      backgroundColor: isActive ? '#f0fdf4' : '#f9fafb',
-      transition: 'all 0.25s ease',
-      transform: isActive ? 'scale(1.06)' : 'scale(1)',
-      boxShadow: isActive ? '0 2px 8px rgba(34,197,94,0.3)' : 'none'
+      padding: '6px 8px',
+      border: `1px solid ${isActive ? 'var(--border-accent)' : 'var(--border)'}`,
+      borderRadius: 'var(--radius-sm)',
+      background: isActive ? 'var(--accent-glow)' : 'var(--bg-elevated)',
+      transition: 'all 0.2s ease',
+      transform: isActive ? 'scale(1.05)' : 'scale(1)',
+      flexShrink: 0,
     }}>
-      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '0.65rem', marginBottom: '2px' }}>
+      <div style={{
+        textAlign: 'center',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '10px',
+        fontWeight: '500',
+        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+        marginBottom: '4px',
+        letterSpacing: '0.05em',
+      }}>
         {chord.name}
       </div>
       <svg width={width} height={height}>
@@ -30,7 +38,8 @@ export default function ChordDiagram({ chord, isActive }) {
             key={`fret-${i}`}
             x1={padLeft} y1={padTop + i * fretSpacing}
             x2={padLeft + (strings - 1) * stringSpacing} y2={padTop + i * fretSpacing}
-            stroke="#9ca3af" strokeWidth={i === 0 ? 2.5 : 1}
+            stroke={i === 0 ? 'rgba(240,235,224,0.2)' : 'rgba(240,235,224,0.06)'}
+            strokeWidth={i === 0 ? 2 : 1}
           />
         ))}
         {/* String lines */}
@@ -39,7 +48,8 @@ export default function ChordDiagram({ chord, isActive }) {
             key={`string-${i}`}
             x1={padLeft + i * stringSpacing} y1={padTop}
             x2={padLeft + i * stringSpacing} y2={padTop + frets * fretSpacing}
-            stroke="#9ca3af" strokeWidth={1}
+            stroke="rgba(240,235,224,0.08)"
+            strokeWidth={1}
           />
         ))}
         {/* Finger dots */}
@@ -47,13 +57,22 @@ export default function ChordDiagram({ chord, isActive }) {
           if (finger.fret === 0) return null;
           const x = padLeft + (6 - finger.string) * stringSpacing;
           const y = padTop + (finger.fret - 0.5) * fretSpacing;
-          return <circle key={i} cx={x} cy={y} r={7} fill={isActive ? '#22c55e' : '#374151'} />;
+          return (
+            <circle key={i} cx={x} cy={y} r={6}
+              fill={isActive ? 'rgba(200,169,110,0.8)' : 'rgba(240,235,224,0.15)'}
+              stroke={isActive ? 'var(--accent)' : 'rgba(240,235,224,0.2)'}
+              strokeWidth={1}
+            />
+          );
         })}
         {/* Open string markers */}
         {chord.fingers.filter(f => f.fret === 0).map((finger, i) => {
           const x = padLeft + (6 - finger.string) * stringSpacing;
           return (
-            <text key={i} x={x} y={padTop - 6} textAnchor="middle" fontSize="10" fill="#6b7280">○</text>
+            <text key={i} x={x} y={padTop - 5} textAnchor="middle" fontSize="9"
+              fill={isActive ? 'rgba(200,169,110,0.7)' : 'rgba(240,235,224,0.2)'}>
+              ○
+            </text>
           );
         })}
       </svg>

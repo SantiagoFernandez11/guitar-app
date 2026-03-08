@@ -16,7 +16,7 @@ export default function MySongs() {
   }, [token]);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this draft?')) return;
+    if (!window.confirm('Delete this song?')) return;
     try {
       await axios.delete(`http://localhost:5001/api/songs/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -61,7 +61,7 @@ export default function MySongs() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
           {/* Header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px 80px auto', gap: '16px', padding: '8px 16px', marginBottom: '4px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 70px 70px 180px', gap: '16px', padding: '8px 16px', marginBottom: '4px' }}>
             {['Title', 'Artist', 'BPM', 'Likes', ''].map(h => (
               <span key={h} style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</span>
             ))}
@@ -69,7 +69,7 @@ export default function MySongs() {
 
           {songs.map(song => (
             <div key={song._id} style={{
-              display: 'grid', gridTemplateColumns: '1fr 140px 80px 80px auto',
+              display: 'grid', gridTemplateColumns: '1fr 160px 70px 70px 180px',
               gap: '16px', padding: '10px 16px',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid transparent',
@@ -121,9 +121,9 @@ export default function MySongs() {
                   <>
                     <button onClick={() => navigate(`/edit-song/${song._id}`)} style={ghostBtn}>Edit</button>
                     <button onClick={() => handlePublish(song._id)} style={accentGhostBtn}>Publish</button>
-                    <button onClick={() => handleDelete(song._id)} style={dangerBtn}>Delete</button>
                   </>
                 )}
+                <button onClick={() => handleDelete(song._id)} style={dangerBtn}>Delete</button>
               </div>
             </div>
           ))}

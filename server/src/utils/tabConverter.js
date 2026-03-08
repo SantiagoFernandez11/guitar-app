@@ -1,22 +1,22 @@
-const NOTE_MAP = {
-  e: { openNote: 'E', octave: 4 },
-  B: { openNote: 'B', octave: 3 },
-  G: { openNote: 'G', octave: 3 },
-  D: { openNote: 'D', octave: 3 },
-  A: { openNote: 'A', octave: 2 },
-  E: { openNote: 'E', octave: 2 }
-};
-
+const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const STRING_NUMBER = { e: 1, B: 2, G: 3, D: 4, A: 5, E: 6 };
 
-const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+// Open string notes for each tuning (strings keyed by tab notation: e, B, G, D, A, E)
+const TUNING_CONFIGS = {
+  standard:     { e:{n:'E',o:4}, B:{n:'B',o:3}, G:{n:'G',o:3}, D:{n:'D',o:3}, A:{n:'A',o:2}, E:{n:'E',o:2} },
+  dropD:        { e:{n:'E',o:4}, B:{n:'B',o:3}, G:{n:'G',o:3}, D:{n:'D',o:3}, A:{n:'A',o:2}, E:{n:'D',o:2} },
+  halfStepDown: { e:{n:'D#',o:4}, B:{n:'A#',o:3}, G:{n:'F#',o:3}, D:{n:'C#',o:3}, A:{n:'G#',o:2}, E:{n:'D#',o:2} },
+  openG:        { e:{n:'D',o:4}, B:{n:'B',o:3}, G:{n:'G',o:3}, D:{n:'D',o:3}, A:{n:'G',o:2}, E:{n:'D',o:2} },
+  openD:        { e:{n:'D',o:4}, B:{n:'A',o:3}, G:{n:'F#',o:3}, D:{n:'D',o:3}, A:{n:'A',o:2}, E:{n:'D',o:2} },
+  dadgad:       { e:{n:'D',o:4}, B:{n:'A',o:3}, G:{n:'G',o:3}, D:{n:'D',o:3}, A:{n:'A',o:2}, E:{n:'D',o:2} },
+};
 
-function getNoteAtFret(stringName, fret) {
-  const { openNote, octave } = NOTE_MAP[stringName];
+function getNoteAtFret(openNote, openOctave, fret) {
   const openIndex = CHROMATIC.indexOf(openNote);
-  const noteIndex = (openIndex + fret) % 12;
-  const octaveOffset = Math.floor((openIndex + fret) / 12);
-  return `${CHROMATIC[noteIndex]}${octave + octaveOffset}`;
+  const totalSemitones = openIndex + fret;
+  const noteIndex = totalSemitones % 12;
+  const octaveShift = Math.floor(totalSemitones / 12);
+  return `${CHROMATIC[noteIndex]}${openOctave + octaveShift}`;
 }
 
 function parseNoteValue(noteText) {
@@ -47,26 +47,30 @@ function parseNoteValue(noteText) {
   return null;
 }
 
-function convertTabToNoteMap(tabData, bpm) {
+function convertTabToNoteMap(tabData, bpm, tuning = 'standard', capo = 0) {
   if (!tabData || !tabData.lines) return [];
 
+  const tuningConfig = TUNING_CONFIGS[tuning] || TUNING_CONFIGS.standard;
   const msPerBeat = (60 / bpm) * 1000;
   const noteMap = [];
+  const BUFFER = 3000;
 
   tabData.lines.forEach(line => {
     const stringName = line.string;
     const stringNumber = STRING_NUMBER[stringName];
-
     if (!stringNumber) return;
+
+    const { n: openNote, o: openOctave } = tuningConfig[stringName];
 
     line.notes.forEach((noteText, position) => {
       const parsed = parseNoteValue(noteText);
       if (!parsed) return;
 
-      const BUFFER = 3000;
-
       const timestamp = Math.round(position * msPerBeat) + BUFFER;
-      const noteName = parsed.type === 'muted' ? 'X' : getNoteAtFret(stringName, parsed.fret);
+      // Tab is written relative to capo, so sounding pitch = fret + capo semitones above open string
+      const noteName = parsed.type === 'muted'
+        ? 'X'
+        : getNoteAtFret(openNote, openOctave, parsed.fret + capo);
       const chordAtPosition = tabData.chords?.[position] || '';
 
       noteMap.push({
@@ -81,7 +85,6 @@ function convertTabToNoteMap(tabData, bpm) {
   });
 
   noteMap.sort((a, b) => a.timestamp - b.timestamp || a.string - b.string);
-
   return noteMap;
 }
 

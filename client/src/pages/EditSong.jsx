@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import TabEditor from '../components/TabEditor';
+import ChordEditor from '../components/ChordEditor';
 
 const TUNINGS = [
   { value: 'standard', label: 'Standard (E-A-D-G-B-E)' },
@@ -18,37 +19,23 @@ export default function EditSong() {
   const { id } = useParams();
   const { token } = useAuth();
   const navigate = useNavigate();
-
   const [meta, setMeta] = useState(null);
   const [tabData, setTabData] = useState(null);
+  const [chords, setChords] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
   const tapTimes = useRef([]);
   const tapTimeout = useRef(null);
 
   useEffect(() => {
-    const fetchSong = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5001/api/songs/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const song = res.data;
-        setMeta({
-          title: song.title,
-          artist: song.artist,
-          bpm: song.bpm,
-          difficulty: song.difficulty,
-          tuning: song.tuning || 'standard',
-          customTuning: '',
-          capo: song.capo || 0,
-        });
-        setTabData(song.tabData || null);
-      } catch (err) {
-        setError('Could not load song');
-      }
-    };
-    fetchSong();
+    axios.get(`http://localhost:5001/api/songs/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      const song = res.data;
+      setMeta({ title: song.title, artist: song.artist, bpm: song.bpm, difficulty: song.difficulty, tuning: song.tuning || 'standard', customTuning: '', capo: song.capo || 0 });
+      setTabData(song.tabData || null);
+      setChords(song.chords || []);
+    }).catch(() => setError('Could not load song'));
   }, [id, token]);
 
   const handleTap = () => {
@@ -56,40 +43,28 @@ export default function EditSong() {
     tapTimes.current.push(now);
     if (tapTimes.current.length > 1) {
       const gaps = [];
-      for (let i = 1; i < tapTimes.current.length; i++) {
-        gaps.push(tapTimes.current[i] - tapTimes.current[i - 1]);
-      }
-      const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-      const bpm = Math.round(60000 / avgGap);
+      for (let i = 1; i < tapTimes.current.length; i++) gaps.push(tapTimes.current[i] - tapTimes.current[i - 1]);
+      const bpm = Math.round(60000 / (gaps.reduce((a, b) => a + b, 0) / gaps.length));
       setMeta(prev => ({ ...prev, bpm: Math.min(300, Math.max(20, bpm)) }));
     }
     clearTimeout(tapTimeout.current);
     tapTimeout.current = setTimeout(() => { tapTimes.current = []; }, 2000);
   };
 
-  const handleMetaChange = (field, value) => {
-    setMeta(prev => ({ ...prev, [field]: value }));
-  };
+  const handleMetaChange = (field, value) => setMeta(prev => ({ ...prev, [field]: value }));
 
   const handleSave = async () => {
     if (!meta.title.trim()) return setError('Title is required');
     if (!meta.artist.trim()) return setError('Artist is required');
-
     setSaving(true);
     setError('');
-
     try {
       await axios.put(`http://localhost:5001/api/songs/${id}`, {
-        title: meta.title,
-        artist: meta.artist,
-        bpm: meta.bpm,
-        difficulty: meta.difficulty,
+        ...meta,
         tuning: meta.tuning === 'other' ? meta.customTuning : meta.tuning,
-        capo: meta.capo,
         tabData,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+        chords,
+      }, { headers: { Authorization: `Bearer ${token}` } });
       navigate('/my-songs');
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong');
@@ -98,30 +73,27 @@ export default function EditSong() {
     }
   };
 
-  if (!meta) return <p style={{ padding: '2rem' }}>Loading...</p>;
+  if (!meta) return <p style={{ padding: '32px', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Loading...</p>;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Edit Song</h2>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '0.9rem' }}>Changes are saved as a new draft version</p>
-        </div>
-        <button onClick={() => navigate('/my-songs')}
-          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', cursor: 'pointer', background: 'white' }}>
-          ← Back
-        </button>
+    <div style={{ padding: '32px', maxWidth: '800px', fontFamily: 'var(--font-body)' }}>
+
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '4px' }}>
+          Edit Song
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Changes regenerate the note map on save</p>
       </div>
 
       {error && (
-        <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#dc2626', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+        <div style={{ padding: '10px 14px', background: 'rgba(168,80,80,0.08)', border: '1px solid rgba(168,80,80,0.25)', borderRadius: 'var(--radius-sm)', color: 'var(--red)', fontSize: '13px', marginBottom: '20px' }}>
           {error}
         </div>
       )}
 
-      <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem', background: 'white' }}>
-        <h4 style={{ margin: '0 0 1rem 0' }}>Song Details</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+      <div style={sectionStyle}>
+        <p style={sectionLabel}>Song Details</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
           <div>
             <label style={labelStyle}>Title</label>
             <input value={meta.title} onChange={e => handleMetaChange('title', e.target.value)} style={inputStyle} />
@@ -131,17 +103,14 @@ export default function EditSong() {
             <input value={meta.artist} onChange={e => handleMetaChange('artist', e.target.value)} style={inputStyle} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
           <div>
             <label style={labelStyle}>BPM</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <input type="number" value={meta.bpm} min={20} max={300}
                 onChange={e => handleMetaChange('bpm', parseInt(e.target.value) || 120)}
                 style={{ ...inputStyle, flex: 1 }} />
-              <button onClick={handleTap}
-                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>
-                Tap
-              </button>
+              <button onClick={handleTap} style={tapBtnStyle}>Tap</button>
             </div>
           </div>
           <div>
@@ -153,7 +122,7 @@ export default function EditSong() {
             </select>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: meta.tuning === 'other' ? '1rem' : 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: meta.tuning === 'other' ? '14px' : 0 }}>
           <div>
             <label style={labelStyle}>Tuning</label>
             <select value={meta.tuning} onChange={e => handleMetaChange('tuning', e.target.value)} style={inputStyle}>
@@ -176,14 +145,21 @@ export default function EditSong() {
         )}
       </div>
 
-      <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem', background: 'white' }}>
-        <h4 style={{ margin: '0 0 1rem 0' }}>Tab Editor</h4>
+      <div style={sectionStyle}>
+        <p style={sectionLabel}>Tab Editor</p>
         <TabEditor tabData={tabData} onChange={setTabData} />
       </div>
 
+      <div style={sectionStyle}>
+        <p style={sectionLabel}>Chord Diagrams</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Define finger positions for the chords used in your tab. These display during playback.
+        </p>
+        <ChordEditor chords={chords} onChange={setChords} />
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={handleSave} disabled={saving}
-          style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', background: '#1d4ed8', color: 'white', fontWeight: '600', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+        <button onClick={handleSave} disabled={saving} style={accentActionBtn}>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
@@ -191,5 +167,34 @@ export default function EditSong() {
   );
 }
 
-const labelStyle = { display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px', color: '#374151' };
-const inputStyle = { width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white', color: '#111827' };
+const sectionStyle = {
+  border: '1px solid var(--border-mid)', borderRadius: 'var(--radius)',
+  padding: '20px', marginBottom: '20px', background: 'var(--bg-elevated)',
+};
+const sectionLabel = {
+  fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)',
+  textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '16px',
+};
+const labelStyle = {
+  display: 'block', fontSize: '12px', fontWeight: '500',
+  marginBottom: '5px', color: 'var(--text-secondary)',
+};
+const inputStyle = {
+  width: '100%', padding: '8px 10px',
+  background: 'var(--bg-active)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)',
+  fontFamily: 'var(--font-body)', fontSize: '13px', outline: 'none',
+  boxSizing: 'border-box', transition: 'border-color var(--transition)',
+};
+const tapBtnStyle = {
+  padding: '8px 14px', borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border)', background: 'transparent',
+  color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px',
+  fontFamily: 'var(--font-body)', fontWeight: '500', whiteSpace: 'nowrap',
+};
+const accentActionBtn = {
+  padding: '9px 20px', borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border-accent)', background: 'var(--accent-glow)',
+  color: 'var(--accent)', cursor: 'pointer', fontSize: '13px',
+  fontFamily: 'var(--font-display)', fontWeight: '700',
+};
