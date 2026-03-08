@@ -7,7 +7,8 @@ const fingerSchema = new mongoose.Schema({
 
 const chordSchema = new mongoose.Schema({
   name: String,
-  fingers: [fingerSchema]
+  fingers: [fingerSchema],
+  startFret: { type: Number, default: 1 }
 });
 
 const noteSchema = new mongoose.Schema({
