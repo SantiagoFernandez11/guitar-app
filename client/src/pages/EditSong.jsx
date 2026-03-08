@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import TabEditor from '../components/TabEditor';
 import ChordEditor from '../components/ChordEditor';
+import { lookupChord } from '../utils/chordLibrary';
 
 const TUNINGS = [
   { value: 'standard', label: 'Standard (E-A-D-G-B-E)' },
@@ -59,11 +60,19 @@ export default function EditSong() {
     setSaving(true);
     setError('');
     try {
+      // Auto-add library presets for any chord names in the tab not already manually defined
+      const tabChordNames = [...new Set((tabData?.chords || []).filter(Boolean))];
+      const autoChords = tabChordNames
+        .filter(name => !chords.some(c => c.name === name))
+        .map(name => { const p = lookupChord(name); return p ? { name, ...p } : null; })
+        .filter(Boolean);
+      const finalChords = [...chords, ...autoChords];
+
       await axios.put(`http://localhost:5001/api/songs/${id}`, {
         ...meta,
         tuning: meta.tuning === 'other' ? meta.customTuning : meta.tuning,
         tabData,
-        chords,
+        chords: finalChords,
       }, { headers: { Authorization: `Bearer ${token}` } });
       navigate('/my-songs');
     } catch (err) {
