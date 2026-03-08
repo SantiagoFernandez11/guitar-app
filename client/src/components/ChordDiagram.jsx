@@ -1,11 +1,11 @@
 export default function ChordDiagram({ chord, isActive }) {
   const strings = 6;
   const frets = 4;
-  const cellSize = 18;
+  const cellSize = 14;
   const stringSpacing = cellSize;
   const fretSpacing = cellSize;
-  const padLeft = 18;
-  const padTop = 20;
+  const padLeft = cellSize;
+  const padTop = 16;
   const width = padLeft + (strings - 1) * stringSpacing + 14;
   const height = padTop + frets * fretSpacing + 14;
 
@@ -20,7 +20,7 @@ export default function ChordDiagram({ chord, isActive }) {
       transform: isActive ? 'scale(1.06)' : 'scale(1)',
       boxShadow: isActive ? '0 2px 8px rgba(34,197,94,0.3)' : 'none'
     }}>
-      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '0.75rem', marginBottom: '2px' }}>
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '0.65rem', marginBottom: '2px' }}>
         {chord.name}
       </div>
       <svg width={width} height={height}>

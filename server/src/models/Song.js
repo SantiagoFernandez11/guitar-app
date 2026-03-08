@@ -19,6 +19,17 @@ const noteSchema = new mongoose.Schema({
   type: { type: String, enum: ['fingered', 'open', 'muted'], default: 'fingered' }
 });
 
+// Tab editor format
+const tabLineSchema = new mongoose.Schema({
+  string: String,
+  notes: [String]
+});
+
+const tabDataSchema = new mongoose.Schema({
+  chords: [String],
+  lines: [tabLineSchema]
+});
+
 const songSchema = new mongoose.Schema({
   title: { type: String, required: true },
   artist: { type: String, required: true },
@@ -27,9 +38,15 @@ const songSchema = new mongoose.Schema({
     enum: ['beginner', 'intermediate', 'advanced'],
     default: 'beginner'
   },
-  bpm: Number,
+  bpm: { type: Number, required: true },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  published: { type: Boolean, default: false },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   chords: [chordSchema],
-  noteMap: [noteSchema]
-});
+  tabData: tabDataSchema,
+  noteMap: [noteSchema],
+  tuning: { type: String, default: 'standard' },
+  capo: { type: Number, default: 0 }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Song', songSchema);

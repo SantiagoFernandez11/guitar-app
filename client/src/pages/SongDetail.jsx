@@ -30,8 +30,8 @@ export default function SongDetail() {
     fetchSong();
   }, [id, token]);
 
-  const { hits, misses, detectedNote, startListening, stopListening, reset } =
-    useAudioScoring(song?.noteMap || []);
+  const { hits, misses, detectedNote, hitResults, startListening, stopListening, reset } =
+    useAudioScoring(song?.noteMap ?? []);
 
   const songDuration = song
     ? Math.max(...song.noteMap.map(n => n.timestamp)) + 2000
@@ -99,7 +99,7 @@ export default function SongDetail() {
         </div>
         <button onClick={() => navigate('/songs')}
           style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #d1d5db', cursor: 'pointer' }}>
-          ← Back
+          Back
         </button>
       </div>
 
@@ -117,7 +117,12 @@ export default function SongDetail() {
 
       {/* Note Highway */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <NoteHighway noteMap={song.noteMap} currentTimeRef={currentTimeRef} speed={speed} />
+        <NoteHighway
+          noteMap={song.noteMap}
+          currentTimeRef={currentTimeRef}
+          speed={speed}
+          hitResults={hitResults}
+        />
       </div>
 
       {/* Live Stats */}
@@ -127,10 +132,10 @@ export default function SongDetail() {
           padding: '0.75rem 1rem', background: '#f9fafb',
           borderRadius: '10px', border: '1px solid #e5e7eb'
         }}>
-          <span>🎵 <strong>{detectedNote || '—'}</strong></span>
-          <span>✅ {hits}</span>
-          <span>❌ {misses}</span>
-          <span>🎯 {accuracy}%</span>
+          <span>Note: <strong>{detectedNote || '—'}</strong></span>
+          <span>Hits: {hits}</span>
+          <span>Misses: {misses}</span>
+          <span>Accuracy: {accuracy}%</span>
         </div>
       )}
 
@@ -143,7 +148,7 @@ export default function SongDetail() {
             backgroundColor: playing ? '#ef4444' : '#22c55e',
             color: 'white', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer'
           }}>
-          {playing ? '⏹ Stop' : '▶ Play'}
+          {playing ? 'Stop' : 'Play'}
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>

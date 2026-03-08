@@ -6,6 +6,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const songRoutes = require('./routes/songs');
 const scoreRoutes = require('./routes/scores');
+const profileRoutes = require('./routes/profile');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/songs', songRoutes);
 app.use('/api/scores', scoreRoutes);
+app.use('/api/profile', profileRoutes);
 
 app.get('/api', (req, res) => {
   res.json({ message: 'Guitar app server is running' });

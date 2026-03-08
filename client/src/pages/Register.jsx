@@ -9,32 +9,66 @@ export default function Register() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const res = await axios.post('http://localhost:5001/api/auth/register', form);
       login(res.data.user, res.data.token);
-      navigate('/dashboard');
+      navigate('/discover');
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong');
     }
   };
 
   return (
-    <div>
-      <h2>Create Account</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input name="username" placeholder="Username" onChange={handleChange} required />
-        <input name="email" type="email" placeholder="Email" onChange={handleChange} required />
-        <input name="password" type="password" placeholder="Password" onChange={handleChange} required />
-        <button type="submit">Register</button>
-      </form>
-      <p>Already have an account? <Link to="/login">Login</Link></p>
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg-base)', fontFamily: 'var(--font-body)'
+    }}>
+      <div style={{ width: '100%', maxWidth: '380px', padding: '0 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: '800', color: 'var(--accent)', marginBottom: '8px' }}>
+            fretboard
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Create your account</p>
+        </div>
+
+        {error && (
+          <div style={{ padding: '10px 14px', background: 'rgba(200, 92, 92, 0.1)', border: '1px solid rgba(200, 92, 92, 0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--red)', fontSize: '13px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+          <input name="username" placeholder="Username" onChange={handleChange} style={authInputStyle} />
+          <input name="email" type="email" placeholder="Email" onChange={handleChange} style={authInputStyle} />
+          <input name="password" type="password" placeholder="Password" onChange={handleChange} style={authInputStyle} />
+        </div>
+
+        <button onClick={handleSubmit} style={authButtonStyle}>Create Account</button>
+
+        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: 'var(--text-muted)' }}>
+          Already have an account?{' '}
+          <Link to="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Sign in</Link>
+        </p>
+      </div>
     </div>
   );
 }
+
+const authInputStyle = {
+  width: '100%', padding: '12px 14px',
+  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)',
+  fontFamily: 'var(--font-body)', fontSize: '14px', outline: 'none',
+};
+
+const authButtonStyle = {
+  width: '100%', padding: '12px',
+  background: 'var(--accent)', border: 'none',
+  borderRadius: 'var(--radius-sm)', color: '#0a0a0a',
+  fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '700',
+  cursor: 'pointer', letterSpacing: '0.02em'
+};
