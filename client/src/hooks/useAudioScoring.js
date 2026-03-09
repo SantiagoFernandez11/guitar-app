@@ -78,10 +78,11 @@ export function useAudioScoring(noteMap) {
             const diff = Math.abs(currentTime - timestamp);
             if (diff > GOOD_WINDOW) return;
 
-            const fingeredNotes = notes.filter(n => n.type === 'fingered');
-            const anyMatch = fingeredNotes.length === 0
+            // Both fingered and open strings produce a real pitch and can be matched
+            const scorableNotes = notes.filter(n => n.type === 'fingered' || n.type === 'open');
+            const anyMatch = scorableNotes.length === 0
               ? false
-              : fingeredNotes.some(n => notesMatch(note, n.note));
+              : scorableNotes.some(n => notesMatch(note, n.note));
 
             if (anyMatch) {
               scoredTimestampsRef.current.add(timestamp);
