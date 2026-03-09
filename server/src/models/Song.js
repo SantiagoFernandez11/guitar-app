@@ -26,9 +26,24 @@ const tabLineSchema = new mongoose.Schema({
   notes: [String]
 });
 
+const tabNoteSchema = new mongoose.Schema({
+  string: Number,  // 1-6, string 1 = high e, string 6 = low E
+  fret: String,    // '0', '5', '7h9', 'x', '<5>', etc.
+});
+
+const tabEventSchema = new mongoose.Schema({
+  tick: Number,       // absolute tick from start
+  chord: String,      // optional chord label
+  notes: [tabNoteSchema],
+  duration: Number,   // duration in ticks (for editor)
+});
+
 const tabDataSchema = new mongoose.Schema({
+  ticksPerBeat: { type: Number, default: 12 },
+  events: [tabEventSchema],
+  // Legacy fields kept for backward compatibility:
   chords: [String],
-  lines: [tabLineSchema]
+  lines: [tabLineSchema],
 });
 
 const songSchema = new mongoose.Schema({

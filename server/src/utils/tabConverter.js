@@ -1,5 +1,6 @@
 const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const STRING_NUMBER = { e: 1, B: 2, G: 3, D: 4, A: 5, E: 6 };
+const STRING_BY_NUMBER = { 1: 'e', 2: 'B', 3: 'G', 4: 'D', 5: 'A', 6: 'E' };
 
 // Open string notes for each tuning (strings keyed by tab notation: e, B, G, D, A, E)
 const TUNING_CONFIGS = {
@@ -47,7 +48,42 @@ function parseNoteValue(noteText) {
   return null;
 }
 
-function convertTabToNoteMap(tabData, bpm, tuning = 'standard', capo = 0) {
+function convertFromEvents(tabData, bpm, tuning = 'standard', capo = 0) {
+  const tuningConfig = TUNING_CONFIGS[tuning] || TUNING_CONFIGS.standard;
+  const ticksPerBeat = tabData.ticksPerBeat || 12;
+  const msPerTick = (60 / bpm * 1000) / ticksPerBeat;
+  const BUFFER = 3000;
+  const noteMap = [];
+
+  tabData.events.forEach(event => {
+    const timestamp = Math.round(event.tick * msPerTick) + BUFFER;
+    (event.notes || []).forEach(note => {
+      const stringName = STRING_BY_NUMBER[note.string];
+      if (!stringName) return;
+      const tuningEntry = tuningConfig[stringName];
+      if (!tuningEntry) return;
+      const { n: openNote, o: openOctave } = tuningEntry;
+      const parsed = parseNoteValue(note.fret);
+      if (!parsed) return;
+      const noteName = parsed.type === 'muted'
+        ? 'X'
+        : getNoteAtFret(openNote, openOctave, parsed.fret + capo);
+      noteMap.push({
+        note: noteName,
+        fret: parsed.fret,
+        string: note.string,
+        timestamp,
+        chord: event.chord || '',
+        type: parsed.type,
+      });
+    });
+  });
+
+  noteMap.sort((a, b) => a.timestamp - b.timestamp || a.string - b.string);
+  return noteMap;
+}
+
+function convertFromLines(tabData, bpm, tuning = 'standard', capo = 0) {
   if (!tabData || !tabData.lines) return [];
 
   const tuningConfig = TUNING_CONFIGS[tuning] || TUNING_CONFIGS.standard;
@@ -86,6 +122,17 @@ function convertTabToNoteMap(tabData, bpm, tuning = 'standard', capo = 0) {
 
   noteMap.sort((a, b) => a.timestamp - b.timestamp || a.string - b.string);
   return noteMap;
+}
+
+function convertTabToNoteMap(tabData, bpm, tuning = 'standard', capo = 0) {
+  if (!tabData) return [];
+  if (tabData.events && tabData.events.length > 0) {
+    return convertFromEvents(tabData, bpm, tuning, capo);
+  }
+  if (tabData.lines && tabData.lines.length > 0) {
+    return convertFromLines(tabData, bpm, tuning, capo);  // legacy
+  }
+  return [];
 }
 
 module.exports = { convertTabToNoteMap };

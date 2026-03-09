@@ -1,67 +1,111 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { lookupChord } from '../utils/chordLibrary';
 
+const TICKS_PER_BEAT = 12;
+const PX_PER_TICK = 6;
+const LANE_HEIGHT = 24;
+
+const DURATIONS = [
+  { label: '1/1',   value: 'whole',      ticks: 48 },
+  { label: '1/2',   value: 'half',       ticks: 24 },
+  { label: '1/2.',  value: 'half.',      ticks: 36 },
+  { label: '1/4',   value: 'quarter',    ticks: 12 },
+  { label: '1/4.',  value: 'quarter.',   ticks: 18 },
+  { label: '1/8',   value: 'eighth',     ticks: 6  },
+  { label: '1/8.',  value: 'eighth.',    ticks: 9  },
+  { label: '1/16',  value: 'sixteenth',  ticks: 3  },
+  { label: '1/4T',  value: 'quarter3',   ticks: 8  },
+  { label: '1/8T',  value: 'eighth3',    ticks: 4  },
+  { label: '1/16T', value: 'sixteenth3', ticks: 2  },
+];
+
 const TECHNIQUES = [
-  { value: 'normal', label: 'Normal', symbol: '' },
-  { value: 'slideUp', label: 'Slide Up', symbol: '/' },
+  { value: 'normal',    label: 'Normal',     symbol: '' },
+  { value: 'slideUp',   label: 'Slide Up',   symbol: '/' },
   { value: 'slideDown', label: 'Slide Down', symbol: '\\' },
-  { value: 'hammerOn', label: 'Hammer-On', symbol: 'h' },
-  { value: 'pullOff', label: 'Pull-Off', symbol: 'p' },
-  { value: 'bend', label: 'Bend', symbol: '^' },
-  { value: 'release', label: 'Release', symbol: 'r' },
-  { value: 'vibrato', label: 'Vibrato', symbol: '~' },
-  { value: 'mute', label: 'Mute', symbol: 'x' },
-  { value: 'harmonic', label: 'Harmonic', symbol: '<>' },
+  { value: 'hammerOn',  label: 'Hammer-On',  symbol: 'h' },
+  { value: 'pullOff',   label: 'Pull-Off',   symbol: 'p' },
+  { value: 'bend',      label: 'Bend',       symbol: '^' },
+  { value: 'release',   label: 'Release',    symbol: 'r' },
+  { value: 'vibrato',   label: 'Vibrato',    symbol: '~' },
+  { value: 'mute',      label: 'Mute',       symbol: 'x' },
+  { value: 'harmonic',  label: 'Harmonic',   symbol: '<>' },
 ];
 
 const FRETS = Array.from({ length: 13 }, (_, i) => i);
-const COL_WIDTH = 36;
+const STRINGS = [1, 2, 3, 4, 5, 6]; // high e → low E
+const STRING_NAMES = { 1: 'e', 2: 'B', 3: 'G', 4: 'D', 5: 'A', 6: 'E' };
 
-export default function TabEditor({ tabData, onChange }) {
-  const [tab, setTab] = useState(tabData || {
-    chords: [],
-    lines: [
-      { string: 'e', notes: [] },
-      { string: 'B', notes: [] },
-      { string: 'G', notes: [] },
-      { string: 'D', notes: [] },
-      { string: 'A', notes: [] },
-      { string: 'E', notes: [] },
-    ]
+const defaultTabData = () => ({ ticksPerBeat: TICKS_PER_BEAT, events: [] });
+
+export default function TabEditor({ tabData: initialTabData, onChange }) {
+  const [tabData, setTabData] = useState(() => {
+    if (initialTabData?.events) return initialTabData;
+    return defaultTabData();
   });
-  const [position, setPosition] = useState(0);
-  const initialSyncDone = useRef(false);
-
-  // Sync when tabData is loaded asynchronously (e.g. in EditSong)
-  useEffect(() => {
-    if (tabData && !initialSyncDone.current) {
-      initialSyncDone.current = true;
-      setTab(tabData);
-    }
-  }, [tabData]);
-
-  const [tabLength, setTabLength] = useState(32);
+  const [currentTick, setCurrentTick] = useState(0);
+  const [duration, setDuration] = useState('quarter');
   const [technique, setTechnique] = useState('normal');
   const [pendingTechnique, setPendingTechnique] = useState(null);
+  const [autoAdvance, setAutoAdvance] = useState(false);
+  const initialSyncDone = useRef(false);
+  const previewRef = useRef(null);
 
-  const updateTab = (newTab) => { setTab(newTab); onChange?.(newTab); };
+  useEffect(() => {
+    if (initialTabData && !initialSyncDone.current) {
+      initialSyncDone.current = true;
+      if (initialTabData.events) {
+        setTabData(initialTabData);
+      }
+    }
+  }, [initialTabData]);
 
-  const addNote = (stringIndex, fret) => {
-    const newTab = JSON.parse(JSON.stringify(tab));
-    const line = newTab.lines[stringIndex];
-    while (line.notes.length <= position) line.notes.push('-');
-    while (newTab.chords.length <= position) newTab.chords.push('');
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const x = currentTick * PX_PER_TICK - previewRef.current.clientWidth / 2;
+    previewRef.current.scrollLeft = Math.max(0, x);
+  }, [currentTick]);
+
+  const currentDurationTicks = DURATIONS.find(d => d.value === duration)?.ticks ?? 12;
+  const ticksPerBeat = tabData.ticksPerBeat || TICKS_PER_BEAT;
+  const ticksPerBar = ticksPerBeat * 4;
+
+  const bar = Math.floor(currentTick / ticksPerBar) + 1;
+  const beatInBar = Math.floor((currentTick % ticksPerBar) / ticksPerBeat) + 1;
+  const tickInBeat = currentTick % ticksPerBeat;
+
+  const currentEvent = tabData.events.find(e => e.tick === currentTick);
+  const currentChord = currentEvent?.chord || '';
+
+  const updateTabData = (newTabData) => {
+    setTabData(newTabData);
+    onChange?.(newTabData);
+  };
+
+  const addNote = (string, fret) => {
+    const newTabData = JSON.parse(JSON.stringify(tabData));
 
     if (pendingTechnique) {
-      const { stringIndex: fromString, position: fromPos, fret: fromFret, symbol } = pendingTechnique;
-      if (fromString !== stringIndex) { setPendingTechnique(null); return; }
-      while (line.notes.length <= fromPos) line.notes.push('-');
-      line.notes[fromPos] = `${fromFret}${symbol}${fret}`;
+      const { string: fromString, tick: fromTick, fret: fromFret, symbol } = pendingTechnique;
+      if (fromString !== string) { setPendingTechnique(null); return; }
+      const fromEvent = newTabData.events.find(e => e.tick === fromTick);
+      if (fromEvent) {
+        const note = fromEvent.notes.find(n => n.string === fromString);
+        if (note) note.fret = `${fromFret}${symbol}${fret}`;
+      }
       setPendingTechnique(null);
-      updateTab(newTab);
+      updateTabData(newTabData);
       return;
     }
+
+    let event = newTabData.events.find(e => e.tick === currentTick);
+    if (!event) {
+      event = { tick: currentTick, chord: currentChord, notes: [], duration: currentDurationTicks };
+      newTabData.events.push(event);
+      newTabData.events.sort((a, b) => a.tick - b.tick);
+    }
+    event.duration = currentDurationTicks;
 
     let noteText = '';
     if (technique === 'mute') noteText = 'x';
@@ -72,58 +116,87 @@ export default function TabEditor({ tabData, onChange }) {
     else if (technique === 'vibrato') noteText = `${fret}~`;
     else {
       const t = TECHNIQUES.find(t => t.value === technique);
-      setPendingTechnique({ stringIndex, position, fret, symbol: t.symbol });
+      setPendingTechnique({ string, tick: currentTick, fret, symbol: t.symbol });
       noteText = String(fret);
     }
 
-    line.notes[position] = noteText;
-    updateTab(newTab);
+    event.notes = event.notes.filter(n => n.string !== string);
+    event.notes.push({ string, fret: noteText });
+    updateTabData(newTabData);
+
+    if (autoAdvance) setCurrentTick(prev => prev + currentDurationTicks);
   };
 
-  const removeNote = (stringIndex, pos) => {
-    const newTab = JSON.parse(JSON.stringify(tab));
-    if (newTab.lines[stringIndex].notes[pos] !== undefined) newTab.lines[stringIndex].notes[pos] = '-';
-    updateTab(newTab);
+  const removeNote = (tick, string) => {
+    const newTabData = JSON.parse(JSON.stringify(tabData));
+    const event = newTabData.events.find(e => e.tick === tick);
+    if (!event) return;
+    event.notes = event.notes.filter(n => n.string !== string);
+    if (event.notes.length === 0 && !event.chord) {
+      newTabData.events = newTabData.events.filter(e => e.tick !== tick);
+    }
+    updateTabData(newTabData);
   };
 
-  const setChord = (value) => {
-    const newTab = JSON.parse(JSON.stringify(tab));
-    while (newTab.chords.length <= position) newTab.chords.push('');
-    newTab.chords[position] = value;
-    updateTab(newTab);
+  const setChordAtTick = (chord) => {
+    const newTabData = JSON.parse(JSON.stringify(tabData));
+    let event = newTabData.events.find(e => e.tick === currentTick);
+    if (event) {
+      event.chord = chord;
+      if (!chord && event.notes.length === 0) {
+        newTabData.events = newTabData.events.filter(e => e.tick !== currentTick);
+      }
+    } else if (chord) {
+      newTabData.events.push({ tick: currentTick, chord, notes: [], duration: currentDurationTicks });
+      newTabData.events.sort((a, b) => a.tick - b.tick);
+    }
+    updateTabData(newTabData);
   };
 
-  const clearPosition = () => {
-    const newTab = JSON.parse(JSON.stringify(tab));
-    newTab.lines.forEach(line => { if (line.notes[position] !== undefined) line.notes[position] = '-'; });
-    if (newTab.chords[position] !== undefined) newTab.chords[position] = '';
-    updateTab(newTab);
+  const clearCurrentTick = () => {
+    const newTabData = JSON.parse(JSON.stringify(tabData));
+    newTabData.events = newTabData.events.filter(e => e.tick !== currentTick);
+    updateTabData(newTabData);
     setPendingTechnique(null);
   };
 
   const fillChordPreset = () => {
-    const preset = lookupChord(tab.chords[position] || '');
+    const preset = lookupChord(currentChord);
     if (!preset) return;
-    const newTab = JSON.parse(JSON.stringify(tab));
-    while (newTab.chords.length <= position) newTab.chords.push('');
-    // Ensure all lines have a slot at this position, cleared first
-    newTab.lines.forEach(line => {
-      while (line.notes.length <= position) line.notes.push('-');
-      line.notes[position] = '-';
-    });
-    // Fill each fingered string (lines[0]=string1=high e, lines[5]=string6=low E)
-    preset.fingers.forEach(finger => {
-      const lineIndex = finger.string - 1;
-      if (lineIndex >= 0 && lineIndex < newTab.lines.length) {
-        newTab.lines[lineIndex].notes[position] = String(finger.fret);
-      }
-    });
-    updateTab(newTab);
+    const newTabData = JSON.parse(JSON.stringify(tabData));
+    let event = newTabData.events.find(e => e.tick === currentTick);
+    if (!event) {
+      event = { tick: currentTick, chord: currentChord, notes: [], duration: currentDurationTicks };
+      newTabData.events.push(event);
+      newTabData.events.sort((a, b) => a.tick - b.tick);
+    }
+    event.notes = preset.fingers.map(f => ({ string: f.string, fret: String(f.fret) }));
+    updateTabData(newTabData);
   };
 
-  const movePosition = (dir) => {
-    setPendingTechnique(null);
-    setPosition(p => Math.max(0, Math.min(tabLength - 1, p + dir)));
+  const advance = () => setCurrentTick(prev => prev + currentDurationTicks);
+  const retreat = () => setCurrentTick(prev => Math.max(0, prev - currentDurationTicks));
+
+  // Timeline dimensions
+  const maxTick = tabData.events.length > 0
+    ? Math.max(...tabData.events.map(e => e.tick)) + ticksPerBar
+    : ticksPerBar * 4;
+  const totalTicks = maxTick + ticksPerBar;
+  const previewWidth = totalTicks * PX_PER_TICK;
+
+  const handleTimelineClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left + e.currentTarget.scrollLeft;
+    const clickedTick = Math.round(x / PX_PER_TICK);
+    const nearestBeat = Math.round(clickedTick / ticksPerBeat) * ticksPerBeat;
+    // Snap to nearest event within 6px, else nearest beat
+    let snapTick = nearestBeat;
+    let minDist = Math.abs(clickedTick - nearestBeat);
+    for (const ev of tabData.events) {
+      const d = Math.abs(ev.tick - clickedTick);
+      if (d < minDist && d * PX_PER_TICK < 10) { minDist = d; snapTick = ev.tick; }
+    }
+    setCurrentTick(Math.max(0, snapTick));
   };
 
   const iconBtnStyle = {
@@ -137,31 +210,53 @@ export default function TabEditor({ tabData, onChange }) {
   return (
     <div style={{ fontFamily: 'var(--font-body)' }}>
 
-      {/* Position Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
-        <button onClick={() => movePosition(-1)} disabled={position === 0}
-          style={{ ...iconBtnStyle, opacity: position === 0 ? 0.3 : 1 }}>
+      {/* Duration picker */}
+      <div style={{ marginBottom: '14px' }}>
+        <label style={labelStyle}>Note Duration</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          {DURATIONS.map(d => (
+            <button key={d.value} onClick={() => setDuration(d.value)} style={{
+              padding: '5px 10px', borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${duration === d.value ? 'var(--border-accent)' : 'var(--border)'}`,
+              background: duration === d.value ? 'rgba(200,169,110,0.1)' : 'var(--bg-elevated)',
+              color: duration === d.value ? 'var(--accent)' : 'var(--text-secondary)',
+              cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-mono)',
+              transition: 'all var(--transition)',
+            }}>
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Position + navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <div style={{
+          padding: '6px 12px', borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)', background: 'var(--bg-active)',
+          fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)',
+          whiteSpace: 'nowrap',
+        }}>
+          Bar {bar} · Beat {beatInBar} · {tickInBeat}/{ticksPerBeat}
+        </div>
+        <button onClick={retreat} disabled={currentTick === 0} style={{ ...iconBtnStyle, opacity: currentTick === 0 ? 0.3 : 1 }}>
           <ChevronLeft size={15} />
         </button>
-        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Position</span>
-        <input type="number" value={position + 1} min={1} max={tabLength}
-          onChange={e => { const val = parseInt(e.target.value) - 1; if (!isNaN(val)) setPosition(Math.max(0, Math.min(tabLength - 1, val))); }}
-          style={{ width: '52px', padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontSize: '12px', background: 'var(--bg-active)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'var(--font-mono)' }} />
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>/ {tabLength}</span>
-        <button onClick={() => movePosition(1)} disabled={position === tabLength - 1}
-          style={{ ...iconBtnStyle, opacity: position === tabLength - 1 ? 0.3 : 1 }}>
+        <button onClick={advance} style={iconBtnStyle}>
           <ChevronRight size={15} />
         </button>
-        <button onClick={() => setTabLength(l => l + 16)} title="Extend tab" style={{ ...iconBtnStyle, marginLeft: '4px' }}>
-          <Plus size={15} />
-        </button>
-        <button onClick={clearPosition} title="Clear position" style={iconBtnStyle}>
+        <button onClick={clearCurrentTick} title="Clear position" style={iconBtnStyle}>
           <Trash2 size={15} />
         </button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', userSelect: 'none' }}>
+          <input type="checkbox" checked={autoAdvance} onChange={e => setAutoAdvance(e.target.checked)}
+            style={{ accentColor: 'var(--accent)' }} />
+          Auto-advance
+        </label>
       </div>
 
       {/* Technique + Chord */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: lookupChord(tab.chords[position]) ? '8px' : '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: lookupChord(currentChord) ? '8px' : '14px', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '150px' }}>
           <label style={labelStyle}>Technique</label>
           <select value={technique} onChange={e => { setTechnique(e.target.value); setPendingTechnique(null); }} style={inputStyle}>
@@ -172,37 +267,32 @@ export default function TabEditor({ tabData, onChange }) {
         </div>
         <div style={{ flex: 1, minWidth: '150px' }}>
           <label style={labelStyle}>Chord at position</label>
-          <input type="text" value={tab.chords[position] || ''} onChange={e => setChord(e.target.value)}
+          <input type="text" value={currentChord} onChange={e => setChordAtTick(e.target.value)}
             placeholder="e.g. Am, C, G7" style={inputStyle} />
         </div>
       </div>
 
-      {/* Chord preset suggestion */}
-      {lookupChord(tab.chords[position]) && (
+      {/* Chord preset */}
+      {lookupChord(currentChord) && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 12px', marginBottom: '16px',
+          padding: '8px 12px', marginBottom: '14px',
           background: 'rgba(200,169,110,0.05)', border: '1px solid var(--border-accent)',
           borderRadius: 'var(--radius-sm)', gap: '12px',
         }}>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Preset found for{' '}
-            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>
-              {tab.chords[position]}
-            </span>
-            {' '}— fills fret numbers into this position
+            Preset for <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{currentChord}</span>
           </span>
           <button onClick={fillChordPreset} style={{
-            padding: '4px 12px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap',
+            padding: '4px 12px', borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--border-accent)', background: 'transparent',
             color: 'var(--accent)', cursor: 'pointer', fontSize: '12px',
-            fontFamily: 'var(--font-body)', fontWeight: '500',
-          }}>
-            Fill tab
-          </button>
+            fontFamily: 'var(--font-body)', fontWeight: '500', whiteSpace: 'nowrap',
+          }}>Fill tab</button>
         </div>
       )}
 
+      {/* Pending technique banner */}
       {pendingTechnique && (
         <div style={{ padding: '8px 12px', background: 'rgba(200,169,110,0.06)', border: '1px solid var(--border-accent)', borderRadius: 'var(--radius-sm)', marginBottom: '12px', fontSize: '12px', color: 'var(--accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Click the destination fret on the same string to complete the technique</span>
@@ -214,7 +304,7 @@ export default function TabEditor({ tabData, onChange }) {
       <div style={{ background: 'var(--bg-active)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px', marginBottom: '12px', overflowX: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Fretboard</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click a fret to add note</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click fret · Auto-advance for runs</span>
         </div>
         <div style={{ minWidth: 'max-content' }}>
           <div style={{ display: 'flex', marginBottom: '4px' }}>
@@ -223,12 +313,19 @@ export default function TabEditor({ tabData, onChange }) {
               <div key={f} style={{ width: '36px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{f}</div>
             ))}
           </div>
-          {tab.lines.map((line, si) => (
-            <div key={line.string} style={{ display: 'flex', alignItems: 'center', marginBottom: '3px' }}>
-              <div style={{ width: '28px', fontWeight: '600', fontSize: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{line.string}</div>
+          {STRINGS.map(s => (
+            <div key={s} style={{ display: 'flex', alignItems: 'center', marginBottom: '3px' }}>
+              <div style={{ width: '28px', fontWeight: '600', fontSize: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                {STRING_NAMES[s]}
+              </div>
               {FRETS.map(f => (
-                <button key={f} onClick={() => addNote(si, f)}
-                  style={{ width: '36px', height: '28px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-elevated)', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', transition: 'all var(--transition)' }}
+                <button key={f} onClick={() => addNote(s, f)} style={{
+                  width: '36px', height: '28px', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)', background: 'var(--bg-elevated)',
+                  cursor: 'pointer', fontSize: '12px', fontWeight: '500',
+                  color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)',
+                  transition: 'all var(--transition)',
+                }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--border-accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
                   {f}
@@ -239,49 +336,140 @@ export default function TabEditor({ tabData, onChange }) {
         </div>
       </div>
 
-      {/* Tab Preview */}
+      {/* Timeline */}
       <div style={{ background: '#0d0d0d', borderRadius: 'var(--radius-sm)', padding: '12px', border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <span style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Tab Preview</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Click notes to remove · Current position highlighted</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <span style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Timeline</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Click to navigate · click note to remove</span>
         </div>
-        <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
-          <div style={{ display: 'inline-block', minWidth: 'max-content', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-            {/* Chord row */}
-            <div style={{ display: 'flex', marginBottom: '2px' }}>
-              <div style={{ width: '24px', flexShrink: 0 }} />
-              {Array.from({ length: tabLength }).map((_, i) => (
-                <div key={i} style={{ width: `${COL_WIDTH}px`, flexShrink: 0, textAlign: 'center', background: i === position ? 'rgba(200,169,110,0.08)' : 'transparent', color: i === position ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '11px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  {tab.chords[i] || ''}
-                </div>
+
+        <div ref={previewRef} style={{ overflowX: 'auto', overflowY: 'hidden' }}
+          onClick={handleTimelineClick}>
+          <div style={{
+            position: 'relative',
+            width: `${previewWidth}px`,
+            height: `${20 + LANE_HEIGHT * STRINGS.length + 10}px`,
+            cursor: 'crosshair',
+          }}>
+
+            {/* Bar lines */}
+            {Array.from({ length: Math.ceil(totalTicks / ticksPerBar) + 1 }, (_, i) => i * ticksPerBar).map(t => (
+              <div key={`bar-${t}`} style={{
+                position: 'absolute', left: `${t * PX_PER_TICK}px`, top: 0, bottom: 0,
+                width: '1px', background: 'rgba(240,235,224,0.15)', pointerEvents: 'none',
+              }} />
+            ))}
+
+            {/* Beat lines */}
+            {Array.from({ length: Math.ceil(totalTicks / ticksPerBeat) + 1 }, (_, i) => i * ticksPerBeat)
+              .filter(t => t % ticksPerBar !== 0)
+              .map(t => (
+                <div key={`beat-${t}`} style={{
+                  position: 'absolute', left: `${t * PX_PER_TICK}px`, top: 0, bottom: 0,
+                  width: '1px', background: 'rgba(240,235,224,0.05)', pointerEvents: 'none',
+                }} />
               ))}
-            </div>
-            {/* String rows */}
-            {tab.lines.map((line, si) => (
-              <div key={line.string} style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-                <div style={{ width: '24px', flexShrink: 0, color: 'var(--text-secondary)', fontWeight: '600', fontSize: '12px' }}>
-                  {line.string}|
-                </div>
-                {Array.from({ length: tabLength }).map((_, i) => {
-                  const note = line.notes[i] || '-';
-                  const isActive = i === position;
-                  const hasNote = note !== '-';
-                  return (
-                    <button key={i} onClick={() => removeNote(si, i)}
-                      style={{ width: `${COL_WIDTH}px`, flexShrink: 0, height: '20px', background: isActive ? 'rgba(200,169,110,0.08)' : 'transparent', color: hasNote ? 'var(--text-primary)' : 'var(--text-muted)', border: 'none', cursor: hasNote ? 'pointer' : 'default', fontFamily: 'var(--font-mono)', fontSize: '12px', textAlign: 'center', padding: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {note}
-                    </button>
-                  );
-                })}
-                <div style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>|</div>
+
+            {/* Bar numbers */}
+            {Array.from({ length: Math.ceil(totalTicks / ticksPerBar) + 1 }, (_, i) => i).map(i => (
+              <div key={`barnum-${i}`} style={{
+                position: 'absolute', left: `${i * ticksPerBar * PX_PER_TICK + 3}px`, top: '2px',
+                fontSize: '9px', color: 'rgba(240,235,224,0.25)', fontFamily: 'var(--font-mono)',
+                pointerEvents: 'none',
+              }}>
+                {i + 1}
               </div>
             ))}
+
+            {/* String lanes */}
+            {STRINGS.map((s, i) => (
+              <div key={`lane-${s}`} style={{
+                position: 'absolute', left: 0, right: 0,
+                top: `${20 + i * LANE_HEIGHT}px`, height: `${LANE_HEIGHT}px`,
+                background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
+                borderTop: '1px solid rgba(240,235,224,0.03)',
+                pointerEvents: 'none',
+              }} />
+            ))}
+
+            {/* Current tick indicator */}
+            <div style={{
+              position: 'absolute', left: `${currentTick * PX_PER_TICK}px`, top: 0, bottom: 0,
+              width: '1px', background: 'rgba(200,169,110,0.5)', pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'absolute',
+              left: `${currentTick * PX_PER_TICK - 4}px`,
+              top: '13px',
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: 'rgba(200,169,110,0.8)', pointerEvents: 'none',
+            }} />
+
+            {/* Events */}
+            {tabData.events.map((event, ei) => {
+              const x = event.tick * PX_PER_TICK;
+              const isActive = event.tick === currentTick;
+              return (
+                <div key={ei} style={{ position: 'absolute', left: `${x}px`, top: 0 }}>
+                  {/* Chord label */}
+                  {event.chord && (
+                    <div style={{
+                      position: 'absolute', top: '2px',
+                      fontSize: '9px', fontFamily: 'var(--font-mono)',
+                      color: isActive ? 'rgba(200,169,110,0.9)' : 'rgba(200,169,110,0.45)',
+                      whiteSpace: 'nowrap', transform: 'translateX(-50%)',
+                      pointerEvents: 'none',
+                    }}>
+                      {event.chord}
+                    </div>
+                  )}
+                  {/* Notes per string */}
+                  {STRINGS.map((s, si) => {
+                    const note = event.notes.find(n => n.string === s);
+                    return (
+                      <div
+                        key={s}
+                        onClick={note ? (e) => { e.stopPropagation(); setCurrentTick(event.tick); removeNote(event.tick, s); } : undefined}
+                        style={{
+                          position: 'absolute',
+                          top: `${20 + si * LANE_HEIGHT}px`,
+                          width: '22px',
+                          height: `${LANE_HEIGHT}px`,
+                          transform: 'translateX(-50%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', fontFamily: 'var(--font-mono)',
+                          color: note
+                            ? (isActive ? 'var(--accent)' : 'rgba(240,235,224,0.85)')
+                            : 'transparent',
+                          cursor: note ? 'pointer' : 'default',
+                          background: note && isActive ? 'rgba(200,169,110,0.08)' : 'transparent',
+                          borderRadius: '3px',
+                        }}
+                      >
+                        {note?.fret ?? ''}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
+
+        {/* String labels legend */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '4px' }}>Strings (top→bottom):</div>
+          {STRINGS.map(s => (
+            <span key={s} style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+              <span style={{ color: 'var(--accent)' }}>{STRING_NAMES[s]}</span>={s}
+            </span>
+          ))}
+        </div>
+
         {/* Technique legend */}
         <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Techniques</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
             {TECHNIQUES.filter(t => t.value !== 'normal').map(t => (
               <div key={t.value} style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                 <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontWeight: '600' }}>{t.symbol}</span> {t.label}

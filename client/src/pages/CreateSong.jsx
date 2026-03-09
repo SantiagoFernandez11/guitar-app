@@ -50,7 +50,7 @@ export default function CreateSong() {
     setError('');
     try {
       // Auto-add library presets for any chord names in the tab not already manually defined
-      const tabChordNames = [...new Set((tabData?.chords || []).filter(Boolean))];
+      const tabChordNames = [...new Set((tabData?.events || []).map(e => e.chord).filter(Boolean))];
       const autoChords = tabChordNames
         .filter(name => !chords.some(c => c.name === name))
         .map(name => { const p = lookupChord(name); return p ? { name, ...p } : null; })
