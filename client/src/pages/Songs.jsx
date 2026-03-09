@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 
 export default function Songs() {
   const [songs, setSongs] = useState([]);
@@ -11,7 +12,7 @@ export default function Songs() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get('http://localhost:5001/api/songs', {
+    axios.get(`${API_URL}/api/songs`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setSongs(res.data)).catch(() => setError('Could not load songs'));
   }, [token]);

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 
 const NAV_ITEMS = [
     { label: 'Discover', path: '/discover', icon: '◈' },
@@ -45,7 +46,7 @@ export default function Layout({ children, rightPane }) {
 
     useEffect(() => {
         if (!token) return;
-        axios.get('http://localhost:5001/api/songs/my', {
+        axios.get(`${API_URL}/api/songs/my`, {
             headers: { Authorization: `Bearer ${token}` }
         }).then(res => setMySongs(res.data)).catch(() => { });
     }, [token, location.pathname]);

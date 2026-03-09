@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 
 export default function MySongs() {
   const { token } = useAuth();
@@ -10,7 +11,7 @@ export default function MySongs() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5001/api/songs/my', {
+    axios.get(`${API_URL}/api/songs/my`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setSongs(res.data)).catch(() => {}).finally(() => setLoading(false));
   }, [token]);
@@ -18,7 +19,7 @@ export default function MySongs() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this song?')) return;
     try {
-      await axios.delete(`http://localhost:5001/api/songs/${id}`, {
+      await axios.delete(`${API_URL}/api/songs/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSongs(prev => prev.filter(s => s._id !== id));
@@ -27,7 +28,7 @@ export default function MySongs() {
 
   const handlePublish = async (id) => {
     try {
-      await axios.post(`http://localhost:5001/api/songs/${id}/publish`, {}, {
+      await axios.post(`${API_URL}/api/songs/${id}/publish`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSongs(prev => prev.map(s => s._id === id ? { ...s, published: true } : s));

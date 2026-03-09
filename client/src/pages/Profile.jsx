@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { getXpProgress } from '../utils/levels';
+import API_URL from '../api';
 
 const TABS = ['Activity', 'My Songs'];
 
@@ -16,7 +17,7 @@ export default function Profile() {
   const [songsLoading, setSongsLoading] = useState(false);
 
   useEffect(() => {
-    axios.get('http://localhost:5001/api/profile', {
+    axios.get(`${API_URL}/api/profile`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setProfile(res.data)).catch(() => setError('Could not load profile'));
   }, [token]);
@@ -24,7 +25,7 @@ export default function Profile() {
   useEffect(() => {
     if (activeTab !== 'My Songs') return;
     setSongsLoading(true);
-    axios.get('http://localhost:5001/api/songs/my', {
+    axios.get(`${API_URL}/api/songs/my`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setSongs(res.data)).catch(() => {}).finally(() => setSongsLoading(false));
   }, [activeTab, token]);
@@ -32,7 +33,7 @@ export default function Profile() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this song?')) return;
     try {
-      await axios.delete(`http://localhost:5001/api/songs/${id}`, {
+      await axios.delete(`${API_URL}/api/songs/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSongs(prev => prev.filter(s => s._id !== id));
@@ -41,7 +42,7 @@ export default function Profile() {
 
   const handlePublish = async (id) => {
     try {
-      await axios.post(`http://localhost:5001/api/songs/${id}/publish`, {}, {
+      await axios.post(`${API_URL}/api/songs/${id}/publish`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSongs(prev => prev.map(s => s._id === id ? { ...s, published: true } : s));

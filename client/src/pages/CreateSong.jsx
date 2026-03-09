@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import TabEditor from '../components/TabEditor';
 import ChordEditor from '../components/ChordEditor';
 import { lookupChord } from '../utils/chordLibrary';
+import API_URL from '../api';
 
 const TUNINGS = [
   { value: 'standard', label: 'Standard (E-A-D-G-B-E)' },
@@ -57,14 +58,14 @@ export default function CreateSong() {
         .filter(Boolean);
       const finalChords = [...chords, ...autoChords];
 
-      const res = await axios.post('http://localhost:5001/api/songs/create', {
+      const res = await axios.post(`${API_URL}/api/songs/create`, {
         ...meta,
         tuning: meta.tuning === 'other' ? meta.customTuning : meta.tuning,
         tabData,
         chords: finalChords,
       }, { headers: { Authorization: `Bearer ${token}` } });
       if (publish) {
-        await axios.post(`http://localhost:5001/api/songs/${res.data._id}/publish`, {}, {
+        await axios.post(`${API_URL}/api/songs/${res.data._id}/publish`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }

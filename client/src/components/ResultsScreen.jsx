@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 
 export default function ResultsScreen({ hits, misses, song, onRetry }) {
   const total = hits + misses;
@@ -15,7 +16,7 @@ export default function ResultsScreen({ hits, misses, song, onRetry }) {
   useEffect(() => {
     if (scoreSavedRef.current) return;
     scoreSavedRef.current = true;
-    axios.post('http://localhost:5001/api/scores', {
+    axios.post(`${API_URL}/api/scores`, {
       songId: song._id, hits, misses, accuracy, xpEarned
     }, { headers: { Authorization: `Bearer ${token}` } })
       .then(() => setSaved(true))

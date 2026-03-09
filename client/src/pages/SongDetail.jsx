@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 import { useAudioScoring } from '../hooks/useAudioScoring';
 import ResultsScreen from '../components/ResultsScreen';
 import ChordDiagram from '../components/ChordDiagram';
@@ -23,7 +24,7 @@ export default function SongDetail() {
   const startTimeRef = useRef(null);
 
   useEffect(() => {
-    axios.get(`http://localhost:5001/api/songs/${id}`, {
+    axios.get(`${API_URL}/api/songs/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => {
       const s = res.data;
@@ -35,7 +36,7 @@ export default function SongDetail() {
 
   const handleLike = async () => {
     try {
-      const res = await axios.post(`http://localhost:5001/api/songs/${id}/like`, {}, {
+      const res = await axios.post(`${API_URL}/api/songs/${id}/like`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setLiked(res.data.liked);

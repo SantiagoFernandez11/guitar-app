@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import TabEditor from '../components/TabEditor';
 import ChordEditor from '../components/ChordEditor';
 import { lookupChord } from '../utils/chordLibrary';
+import API_URL from '../api';
 
 const TUNINGS = [
   { value: 'standard', label: 'Standard (E-A-D-G-B-E)' },
@@ -29,7 +30,7 @@ export default function EditSong() {
   const tapTimeout = useRef(null);
 
   useEffect(() => {
-    axios.get(`http://localhost:5001/api/songs/${id}`, {
+    axios.get(`${API_URL}/api/songs/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => {
       const song = res.data;
@@ -68,7 +69,7 @@ export default function EditSong() {
         .filter(Boolean);
       const finalChords = [...chords, ...autoChords];
 
-      await axios.put(`http://localhost:5001/api/songs/${id}`, {
+      await axios.put(`${API_URL}/api/songs/${id}`, {
         ...meta,
         tuning: meta.tuning === 'other' ? meta.customTuning : meta.tuning,
         tabData,

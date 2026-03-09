@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import API_URL from '../api';
 
 export default function Discover() {
   const { token } = useAuth();
@@ -10,7 +11,7 @@ export default function Discover() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5001/api/songs', {
+    axios.get(`${API_URL}/api/songs`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => {
       const sorted = res.data.sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
