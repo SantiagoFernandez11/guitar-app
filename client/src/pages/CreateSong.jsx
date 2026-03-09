@@ -152,7 +152,7 @@ export default function CreateSong() {
       {/* Tab editor */}
       <div style={sectionStyle}>
         <p style={sectionLabel}>Tab Editor</p>
-        <TabEditor onChange={setTabData} />
+        <TabEditor onChange={setTabData} bpm={meta.bpm} tuning={meta.tuning} capo={meta.capo} />
       </div>
 
       {/* Chord diagrams */}

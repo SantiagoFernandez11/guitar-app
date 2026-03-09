@@ -12,6 +12,9 @@ const TUNING_CONFIGS = {
   dadgad:       { e:{n:'D',o:4}, B:{n:'A',o:3}, G:{n:'G',o:3}, D:{n:'D',o:3}, A:{n:'A',o:2}, E:{n:'D',o:2} },
 };
 
+// Two-note technique symbols → technique name
+const TWO_NOTE_TECHNIQUES = { h: 'hammerOn', p: 'pullOff', '/': 'slideUp', '\\': 'slideDown' };
+
 function getNoteAtFret(openNote, openOctave, fret) {
   const openIndex = CHROMATIC.indexOf(openNote);
   const totalSemitones = openIndex + fret;
@@ -22,30 +25,69 @@ function getNoteAtFret(openNote, openOctave, fret) {
 
 function parseNoteValue(noteText) {
   if (!noteText || noteText === '-') return null;
-  if (noteText === 'x') return { fret: 0, type: 'muted' };
+  if (noteText === 'x') return { fret: 0, type: 'muted', technique: null, destFret: null };
 
   // Harmonic <5>
   if (noteText.startsWith('<') && noteText.endsWith('>')) {
     const fret = parseInt(noteText.slice(1, -1));
-    if (!isNaN(fret)) return { fret, type: 'fingered' };
+    if (!isNaN(fret)) return { fret, type: 'fingered', technique: 'harmonic', destFret: null };
   }
 
   // Extract leading number
-  let numStr = '';
-  for (let i = 0; i < noteText.length; i++) {
-    if (noteText[i] >= '0' && noteText[i] <= '9') {
-      numStr += noteText[i];
-    } else {
-      break;
-    }
+  let i = 0;
+  while (i < noteText.length && noteText[i] >= '0' && noteText[i] <= '9') i++;
+  if (i === 0) return null;
+
+  const fret = parseInt(noteText.slice(0, i));
+  const rest = noteText.slice(i);
+
+  // Two-note techniques: h, p, /, \
+  const twoNote = rest.match(/^([hp/\\])(\d+)/);
+  if (twoNote) {
+    return {
+      fret,
+      type: fret === 0 ? 'open' : 'fingered',
+      technique: TWO_NOTE_TECHNIQUES[twoNote[1]] || null,
+      destFret: parseInt(twoNote[2]),
+    };
   }
 
-  if (numStr.length > 0) {
-    const fret = parseInt(numStr);
-    return { fret, type: fret === 0 ? 'open' : 'fingered' };
-  }
+  // Single-note modifiers
+  if (rest.startsWith('^r')) return { fret, type: 'fingered', technique: 'bendRelease', destFret: null };
+  if (rest.startsWith('^'))  return { fret, type: 'fingered', technique: 'bend',        destFret: null };
+  if (rest.startsWith('~'))  return { fret, type: 'fingered', technique: 'vibrato',     destFret: null };
 
-  return null;
+  return { fret, type: fret === 0 ? 'open' : 'fingered', technique: null, destFret: null };
+}
+
+function pushNotes(noteMap, parsed, openNote, openOctave, string, timestamp, chord, capo, techOffsetMs) {
+  const noteName = parsed.type === 'muted'
+    ? 'X'
+    : getNoteAtFret(openNote, openOctave, parsed.fret + capo);
+
+  noteMap.push({
+    note: noteName,
+    fret: parsed.fret,
+    string,
+    timestamp,
+    chord,
+    type: parsed.type,
+    technique: parsed.technique || null,
+  });
+
+  // Second note for two-note techniques
+  if (parsed.destFret !== null && parsed.destFret !== undefined && parsed.technique) {
+    const destName = getNoteAtFret(openNote, openOctave, parsed.destFret + capo);
+    noteMap.push({
+      note: destName,
+      fret: parsed.destFret,
+      string,
+      timestamp: timestamp + techOffsetMs,
+      chord: '',
+      type: 'fingered',
+      technique: parsed.technique + 'Dest',
+    });
+  }
 }
 
 function convertFromEvents(tabData, bpm, tuning = 'standard', capo = 0) {
@@ -57,6 +99,9 @@ function convertFromEvents(tabData, bpm, tuning = 'standard', capo = 0) {
 
   tabData.events.forEach(event => {
     const timestamp = Math.round(event.tick * msPerTick) + BUFFER;
+    const eventDurationMs = Math.round((event.duration || ticksPerBeat) * msPerTick);
+    const techOffsetMs = Math.max(50, Math.round(eventDurationMs / 2));
+
     (event.notes || []).forEach(note => {
       const stringName = STRING_BY_NUMBER[note.string];
       if (!stringName) return;
@@ -65,17 +110,7 @@ function convertFromEvents(tabData, bpm, tuning = 'standard', capo = 0) {
       const { n: openNote, o: openOctave } = tuningEntry;
       const parsed = parseNoteValue(note.fret);
       if (!parsed) return;
-      const noteName = parsed.type === 'muted'
-        ? 'X'
-        : getNoteAtFret(openNote, openOctave, parsed.fret + capo);
-      noteMap.push({
-        note: noteName,
-        fret: parsed.fret,
-        string: note.string,
-        timestamp,
-        chord: event.chord || '',
-        type: parsed.type,
-      });
+      pushNotes(noteMap, parsed, openNote, openOctave, note.string, timestamp, event.chord || '', capo, techOffsetMs);
     });
   });
 
@@ -88,6 +123,7 @@ function convertFromLines(tabData, bpm, tuning = 'standard', capo = 0) {
 
   const tuningConfig = TUNING_CONFIGS[tuning] || TUNING_CONFIGS.standard;
   const msPerBeat = (60 / bpm) * 1000;
+  const techOffsetMs = Math.max(50, Math.round(msPerBeat / 4));
   const noteMap = [];
   const BUFFER = 3000;
 
@@ -101,22 +137,9 @@ function convertFromLines(tabData, bpm, tuning = 'standard', capo = 0) {
     line.notes.forEach((noteText, position) => {
       const parsed = parseNoteValue(noteText);
       if (!parsed) return;
-
       const timestamp = Math.round(position * msPerBeat) + BUFFER;
-      // Tab is written relative to capo, so sounding pitch = fret + capo semitones above open string
-      const noteName = parsed.type === 'muted'
-        ? 'X'
-        : getNoteAtFret(openNote, openOctave, parsed.fret + capo);
-      const chordAtPosition = tabData.chords?.[position] || '';
-
-      noteMap.push({
-        note: noteName,
-        fret: parsed.fret,
-        string: stringNumber,
-        timestamp,
-        chord: chordAtPosition,
-        type: parsed.type
-      });
+      const chord = tabData.chords?.[position] || '';
+      pushNotes(noteMap, parsed, openNote, openOctave, stringNumber, timestamp, chord, capo, techOffsetMs);
     });
   });
 

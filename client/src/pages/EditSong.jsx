@@ -157,7 +157,7 @@ export default function EditSong() {
 
       <div style={sectionStyle}>
         <p style={sectionLabel}>Tab Editor</p>
-        <TabEditor tabData={tabData} onChange={setTabData} />
+        <TabEditor tabData={tabData} onChange={setTabData} bpm={meta.bpm} tuning={meta.tuning} capo={meta.capo} />
       </div>
 
       <div style={sectionStyle}>

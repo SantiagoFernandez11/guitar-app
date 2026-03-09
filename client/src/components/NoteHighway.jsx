@@ -6,6 +6,19 @@ const HIGHWAY_HEIGHT = 220;
 const HIT_ZONE_X = 100;
 const CHORD_LABEL_HEIGHT = 20;
 
+const TECHNIQUE_SYMBOL = {
+  hammerOn:    'h',
+  pullOff:     'p',
+  slideUp:     '/',
+  slideDown:   '\\',
+  bend:        '^',
+  bendRelease: '^r',
+  vibrato:     '~',
+  harmonic:    '<>',
+};
+
+const TWO_NOTE = new Set(['hammerOn', 'pullOff', 'slideUp', 'slideDown']);
+
 export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -28,6 +41,23 @@ export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults
     const ctx = canvas.getContext('2d');
     const laneHeight = (HIGHWAY_HEIGHT - CHORD_LABEL_HEIGHT) / 6;
     const PIXELS_PER_MS = 0.15 * speed;
+
+    // Pre-compute technique connection pairs: { srcTs, destTs, string, technique }
+    const techniqueLinks = [];
+    const destKeys = new Set(
+      noteMap
+        .filter(n => n.technique && n.technique.endsWith('Dest'))
+        .map(n => `${n.string}-${n.timestamp}`)
+    );
+    noteMap.forEach(n => {
+      if (!n.technique || !TWO_NOTE.has(n.technique)) return;
+      const dest = noteMap.find(
+        d => d.string === n.string &&
+          d.technique === n.technique + 'Dest' &&
+          d.timestamp > n.timestamp
+      );
+      if (dest) techniqueLinks.push({ srcTs: n.timestamp, destTs: dest.timestamp, string: n.string, technique: n.technique });
+    });
 
     const grouped = {};
     noteMap.forEach(n => {
@@ -80,6 +110,48 @@ export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // Technique connection arcs / lines (drawn before notes so notes sit on top)
+      techniqueLinks.forEach(link => {
+        const x1 = HIT_ZONE_X + (link.srcTs - currentTime) * PIXELS_PER_MS;
+        const x2 = HIT_ZONE_X + (link.destTs - currentTime) * PIXELS_PER_MS;
+        if (x2 < -20 || x1 > HIGHWAY_WIDTH + 20) return;
+
+        const laneY = CHORD_LABEL_HEIGHT + (6 - link.string) * laneHeight;
+        const y = Math.round(laneY + laneHeight / 2);
+        const isPast = (link.destTs - currentTime) < -300;
+
+        ctx.strokeStyle = isPast ? 'rgba(200,169,110,0.15)' : 'rgba(200,169,110,0.55)';
+        ctx.lineWidth = 1.5;
+
+        if (link.technique === 'slideUp' || link.technique === 'slideDown') {
+          // Angled straight line between the two notes
+          const yOffset = link.technique === 'slideUp' ? -5 : 5;
+          ctx.beginPath();
+          ctx.moveTo(Math.round(x1) + 14, y - yOffset);
+          ctx.lineTo(Math.round(x2) - 14, y + yOffset);
+          ctx.stroke();
+        } else {
+          // Curved arc above the lane for hammer-on / pull-off
+          const cpX = (x1 + x2) / 2;
+          const cpY = y - 20;
+          ctx.beginPath();
+          ctx.moveTo(Math.round(x1) + 13, y - 2);
+          ctx.quadraticCurveTo(cpX, cpY, Math.round(x2) - 13, y - 2);
+          ctx.stroke();
+        }
+
+        // Technique symbol at midpoint
+        const midX = (x1 + x2) / 2;
+        const sym = TECHNIQUE_SYMBOL[link.technique] || '';
+        if (sym) {
+          ctx.fillStyle = isPast ? 'rgba(200,169,110,0.2)' : 'rgba(200,169,110,0.75)';
+          ctx.font = 'bold 9px DM Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(sym, midX, y - 22);
+        }
+      });
+
       // Draw each timestamp group
       entries.forEach(([, notes]) => {
         const ts = notes[0].timestamp;
@@ -100,8 +172,8 @@ export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults
           ctx.fillText(chordName, cx, CHORD_LABEL_HEIGHT / 2);
         }
 
-        // Vertical connector
-        const fingeredNotes = notes.filter(n => (n.type || 'fingered') === 'fingered');
+        // Vertical connector (for multi-string simultaneous notes)
+        const fingeredNotes = notes.filter(n => (n.type || 'fingered') === 'fingered' && (!n.technique || !n.technique.endsWith('Dest')));
         if (fingeredNotes.length > 1) {
           const sorted = [...fingeredNotes].sort((a, b) => b.string - a.string);
           const topY = Math.round(CHORD_LABEL_HEIGHT + (6 - sorted[0].string) * laneHeight + laneHeight / 2);
@@ -121,24 +193,28 @@ export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults
           const noteY = Math.round(laneY + laneHeight / 2);
           const key = `${n.timestamp}-${n.string}`;
           const result = hitRes?.[key];
+          const isDest = n.technique && n.technique.endsWith('Dest');
 
           let strokeColor = isPast ? 'rgba(240,235,224,0.08)' : 'rgba(240,235,224,0.5)';
-          let textColor = isPast ? 'rgba(240,235,224,0.15)' : 'rgba(240,235,224,0.9)';
-          let fillColor = isPast ? '#0f0f0f' : '#1a1a1a';
+          let textColor   = isPast ? 'rgba(240,235,224,0.15)' : 'rgba(240,235,224,0.9)';
+          let fillColor   = isPast ? '#0f0f0f' : '#1a1a1a';
 
           if (result === 'perfect') {
             strokeColor = 'rgba(200,169,110,0.9)';
-            textColor = 'rgba(200,169,110,1)';
-            fillColor = 'rgba(200,169,110,0.12)';
+            textColor   = 'rgba(200,169,110,1)';
+            fillColor   = 'rgba(200,169,110,0.12)';
           } else if (result === 'good') {
             strokeColor = 'rgba(240,235,224,0.6)';
-            textColor = 'rgba(240,235,224,0.8)';
-            fillColor = 'rgba(240,235,224,0.08)';
+            textColor   = 'rgba(240,235,224,0.8)';
+            fillColor   = 'rgba(240,235,224,0.08)';
           } else if (result === 'missed') {
             strokeColor = 'rgba(168,80,80,0.7)';
-            textColor = 'rgba(168,80,80,0.8)';
-            fillColor = 'rgba(168,80,80,0.08)';
+            textColor   = 'rgba(168,80,80,0.8)';
+            fillColor   = 'rgba(168,80,80,0.08)';
           }
+
+          // Destination notes: dashed circle to visually distinguish
+          if (isDest) strokeColor = strokeColor.replace('0.5)', '0.35)');
 
           if (noteType === 'fingered') {
             ctx.beginPath();
@@ -146,8 +222,10 @@ export default function NoteHighway({ noteMap, currentTimeRef, speed, hitResults
             ctx.fillStyle = fillColor;
             ctx.fill();
             ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = isDest ? 1 : 1.5;
+            if (isDest) ctx.setLineDash([3, 2]);
             ctx.stroke();
+            ctx.setLineDash([]);
 
             ctx.fillStyle = textColor;
             ctx.font = '500 10px DM Mono, monospace';

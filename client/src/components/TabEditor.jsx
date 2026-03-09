@@ -37,9 +37,50 @@ const FRETS = Array.from({ length: 13 }, (_, i) => i);
 const STRINGS = [1, 2, 3, 4, 5, 6]; // high e → low E
 const STRING_NAMES = { 1: 'e', 2: 'B', 3: 'G', 4: 'D', 5: 'A', 6: 'E' };
 
+// Open string MIDI note numbers (string 1–6) per tuning
+const TUNING_MIDI = {
+  standard:     [64, 59, 55, 50, 45, 40],
+  dropD:        [64, 59, 55, 50, 45, 38],
+  halfStepDown: [63, 58, 54, 49, 44, 39],
+  openG:        [62, 59, 55, 50, 43, 38],
+  openD:        [62, 57, 54, 50, 45, 38],
+  dadgad:       [62, 57, 55, 50, 45, 38],
+};
+
+function parseFretForPlayback(fretStr) {
+  if (!fretStr || fretStr === '-' || fretStr === 'x') return null;
+  if (fretStr.startsWith('<') && fretStr.endsWith('>')) return parseInt(fretStr.slice(1, -1));
+  const num = parseInt(fretStr);
+  return isNaN(num) ? null : num;
+}
+
+function schedulePluck(audioCtx, midiNote, startTime) {
+  const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(freq, startTime);
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(4000, startTime);
+  filter.frequency.exponentialRampToValueAtTime(600, startTime + 0.25);
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.35, startTime + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.8);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + 1.8);
+}
+
 const defaultTabData = () => ({ ticksPerBeat: TICKS_PER_BEAT, events: [] });
 
-export default function TabEditor({ tabData: initialTabData, onChange }) {
+export default function TabEditor({ tabData: initialTabData, onChange, bpm = 120, tuning = 'standard', capo = 0 }) {
   const [tabData, setTabData] = useState(() => {
     if (initialTabData?.events) return initialTabData;
     return defaultTabData();
@@ -49,6 +90,8 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
   const [technique, setTechnique] = useState('normal');
   const [pendingTechnique, setPendingTechnique] = useState(null);
   const [autoAdvance, setAutoAdvance] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioCtxRef = useRef(null);
   const initialSyncDone = useRef(false);
   const previewRef = useRef(null);
 
@@ -174,6 +217,64 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
     updateTabData(newTabData);
   };
 
+  const handleListen = () => {
+    if (tabData.events.length === 0) return;
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+    const openMidi = TUNING_MIDI[tuning] || TUNING_MIDI.standard;
+    const ticksPerBeat = tabData.ticksPerBeat || TICKS_PER_BEAT;
+    const msPerTick = (60 / bpm * 1000) / ticksPerBeat;
+    const lastTick = Math.max(...tabData.events.map(e => e.tick));
+    const durationMs = lastTick * msPerTick + 2500;
+
+    tabData.events.forEach(event => {
+      const startSec = (event.tick * msPerTick) / 1000;
+      const eventDurationSec = ((event.duration || ticksPerBeat) * msPerTick) / 1000;
+
+      event.notes.forEach(note => {
+        const fretStr = note.fret;
+        if (!fretStr || fretStr === 'x' || fretStr === '-') return;
+
+        let srcFret, destFret = null;
+
+        if (fretStr.startsWith('<') && fretStr.endsWith('>')) {
+          srcFret = parseInt(fretStr.slice(1, -1));
+        } else {
+          const m = fretStr.match(/^(\d+)([hp/\\])(\d+)/);
+          if (m) {
+            srcFret = parseInt(m[1]);
+            destFret = parseInt(m[3]);
+          } else {
+            srcFret = parseInt(fretStr);
+          }
+        }
+
+        if (isNaN(srcFret)) return;
+        const srcMidi = openMidi[note.string - 1] + srcFret + capo;
+        schedulePluck(ctx, srcMidi, ctx.currentTime + startSec);
+
+        if (destFret !== null && !isNaN(destFret)) {
+          const destMidi = openMidi[note.string - 1] + destFret + capo;
+          const offset = Math.max(0.05, eventDurationSec / 2);
+          schedulePluck(ctx, destMidi, ctx.currentTime + startSec + offset);
+        }
+      });
+    });
+
+    setIsPlaying(true);
+    setTimeout(() => {
+      ctx.close();
+      audioCtxRef.current = null;
+      setIsPlaying(false);
+    }, durationMs);
+  };
+
+  const handleStop = () => {
+    audioCtxRef.current?.close();
+    audioCtxRef.current = null;
+    setIsPlaying(false);
+  };
+
   const advance = () => setCurrentTick(prev => prev + currentDurationTicks);
   const retreat = () => setCurrentTick(prev => Math.max(0, prev - currentDurationTicks));
 
@@ -253,6 +354,29 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
             style={{ accentColor: 'var(--accent)' }} />
           Auto-advance
         </label>
+
+        <div style={{ marginLeft: 'auto' }}>
+          {isPlaying ? (
+            <button onClick={handleStop} style={{
+              padding: '5px 14px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid rgba(168,80,80,0.4)', background: 'rgba(168,80,80,0.08)',
+              color: 'var(--red)', cursor: 'pointer', fontSize: '12px',
+              fontFamily: 'var(--font-body)', fontWeight: '500',
+            }}>
+              ■ Stop
+            </button>
+          ) : (
+            <button onClick={handleListen} disabled={tabData.events.length === 0} style={{
+              padding: '5px 14px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-accent)', background: 'var(--accent-glow)',
+              color: 'var(--accent)', cursor: tabData.events.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '12px', fontFamily: 'var(--font-body)', fontWeight: '500',
+              opacity: tabData.events.length === 0 ? 0.4 : 1,
+            }}>
+              ▶ Listen
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Technique + Chord */}
@@ -405,13 +529,15 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
               background: 'rgba(200,169,110,0.8)', pointerEvents: 'none',
             }} />
 
-            {/* Events */}
-            {tabData.events.map((event, ei) => {
+            {/* Events + technique destination markers */}
+            {tabData.events.flatMap((event, ei) => {
               const x = event.tick * PX_PER_TICK;
               const isActive = event.tick === currentTick;
-              return (
-                <div key={ei} style={{ position: 'absolute', left: `${x}px`, top: 0 }}>
-                  {/* Chord label */}
+              const destOffsetTicks = Math.max(1, Math.floor((event.duration || ticksPerBeat) / 2));
+              const destX = (event.tick + destOffsetTicks) * PX_PER_TICK;
+
+              const sourceDiv = (
+                <div key={`ev-${ei}`} style={{ position: 'absolute', left: `${x}px`, top: 0 }}>
                   {event.chord && (
                     <div style={{
                       position: 'absolute', top: '2px',
@@ -423,9 +549,11 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
                       {event.chord}
                     </div>
                   )}
-                  {/* Notes per string */}
                   {STRINGS.map((s, si) => {
                     const note = event.notes.find(n => n.string === s);
+                    // For two-note techniques show e.g. "2h", for others show the raw fret
+                    const m = note?.fret?.match(/^(\d+)([hp/\\])(\d+)/);
+                    const display = m ? `${m[1]}${m[2]}` : (note?.fret ?? '');
                     return (
                       <div
                         key={s}
@@ -433,25 +561,51 @@ export default function TabEditor({ tabData: initialTabData, onChange }) {
                         style={{
                           position: 'absolute',
                           top: `${20 + si * LANE_HEIGHT}px`,
-                          width: '22px',
-                          height: `${LANE_HEIGHT}px`,
+                          width: '22px', height: `${LANE_HEIGHT}px`,
                           transform: 'translateX(-50%)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: '11px', fontFamily: 'var(--font-mono)',
-                          color: note
-                            ? (isActive ? 'var(--accent)' : 'rgba(240,235,224,0.85)')
-                            : 'transparent',
+                          color: note ? (isActive ? 'var(--accent)' : 'rgba(240,235,224,0.85)') : 'transparent',
                           cursor: note ? 'pointer' : 'default',
                           background: note && isActive ? 'rgba(200,169,110,0.08)' : 'transparent',
                           borderRadius: '3px',
                         }}
                       >
-                        {note?.fret ?? ''}
+                        {display}
                       </div>
                     );
                   })}
                 </div>
               );
+
+              // Destination markers for two-note techniques
+              const destDivs = event.notes
+                .map((note, ni) => {
+                  const m = note.fret?.match(/^(\d+)([hp/\\])(\d+)/);
+                  if (!m) return null;
+                  const si = STRINGS.indexOf(note.string);
+                  return (
+                    <div
+                      key={`dest-${ei}-${ni}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${destX}px`,
+                        top: `${20 + si * LANE_HEIGHT}px`,
+                        width: '22px', height: `${LANE_HEIGHT}px`,
+                        transform: 'translateX(-50%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '11px', fontFamily: 'var(--font-mono)',
+                        color: 'rgba(200,169,110,0.65)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {m[3]}
+                    </div>
+                  );
+                })
+                .filter(Boolean);
+
+              return [sourceDiv, ...destDivs];
             })}
           </div>
         </div>

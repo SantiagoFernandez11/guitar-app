@@ -17,7 +17,8 @@ const noteSchema = new mongoose.Schema({
   string: Number,
   timestamp: Number,
   chord: String,
-  type: { type: String, enum: ['fingered', 'open', 'muted'], default: 'fingered' }
+  type: { type: String, enum: ['fingered', 'open', 'muted'], default: 'fingered' },
+  technique: String,  // 'hammerOn', 'hammerOnDest', 'pullOff', 'pullOffDest', 'slideUp', 'slideUpDest', 'slideDown', 'slideDownDest', 'bend', 'vibrato', etc.
 });
 
 // Tab editor format
